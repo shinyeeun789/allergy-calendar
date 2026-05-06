@@ -1,0 +1,21 @@
+rules_version='2'
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 닉네임 중복 확인은 비로그인 상태에서도 읽기 허용
+    // 쓰기는 본인 uid 소유만 가능
+    match /usernames/{nickname} {
+      allow read: if true;
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.uid;
+      allow update, delete: if request.auth != null
+                            && request.auth.uid == resource.data.uid;
+    }
+
+    // 나머지는 로그인 필수
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
