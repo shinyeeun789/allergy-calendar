@@ -163,7 +163,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           </div>
           <div v-if="errorMessage" class="error-text">{{ errorMessage }}</div>
           <button type="submit" class="btn-primary" :disabled="submitting">
-            {{ submitting ? '로그인 중…' : '로그인' }}
+            {{ submitting ? '로그인 중' : '로그인' }}
           </button>
         </form>
 

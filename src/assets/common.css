@@ -389,32 +389,7 @@ body {
     background: #e0e0e0;
 }
 
-/* ── Signup-specific overrides ── */
-.signup-body { background: var(--bg-dark); }
-.signup-form-panel {
-    width: 520px;
-    padding: 52px 56px;
-    overflow-y: auto;
-}
-.signup-form-inner { max-width: 380px; }
-
-.step-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: #FEF0F4;
-    border-radius: 100px;
-    padding: 5px 14px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--main-pink);
-    margin-bottom: 18px;
-}
-.step-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--main-pink);
-}
+/* ── Signup-specific (panel & perks managed in SignupView scoped styles) ── */
 
 .input-wrap { position: relative; }
 .input-wrap input { padding-right: 42px; }
@@ -790,12 +765,10 @@ nav {
 @media (max-width: 900px) {
     .brand-panel { display: none; }
     .form-panel  { width: 100%; padding: 48px 32px; }
-    .signup-form-panel { width: 100%; padding: 48px 32px; }
 }
 
 @media (max-width: 480px) {
     .form-panel  { padding: 40px 24px; }
-    .signup-form-panel { padding: 36px 20px; }
 }
 
 /* ── Right panel ── */

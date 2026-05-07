@@ -108,16 +108,48 @@ function goToday() {
   currentMonth.value = new Date().getMonth()
 }
 
+// ── 날짜 선택 ──
+const selectedDate = ref<string | null>(null)
+
+// 선택된 날짜의 표시용 라벨 (예: "5월 8일 목요일")
+const selectedDateLabel = computed(() => {
+  const src = selectedDate.value
+  if (!src) {
+    const d = now
+    return `${d.getMonth() + 1}월 ${d.getDate()}일 ${DAY_KO[d.getDay()]}요일`
+  }
+  const [y, m, d] = src.split('-').map(Number)
+  const dow = new Date(y, m - 1, d).getDay()
+  return `${m}월 ${d}일 ${DAY_KO[dow]}요일`
+})
+
+// 선택된 날짜의 전체 라벨 (다이얼로그 헤더용)
+const selectedDateFull = computed(() => {
+  const src = selectedDate.value
+  if (!src) {
+    return `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일`
+  }
+  const [y, m, d] = src.split('-').map(Number)
+  const dow = new Date(y, m - 1, d).getDay()
+  return `${y}년 ${m}월 ${d}일 ${DAY_KO[dow]}요일`
+})
+
+function selectDate(dateStr: string | undefined) {
+  if (!dateStr) return
+  // 같은 날짜 재클릭 시 선택 해제
+  selectedDate.value = selectedDate.value === dateStr ? null : dateStr
+}
+
 // ── 기록 추가 다이얼로그 ──
 const showDialog = ref(false)
 
 function openDialog()  { showDialog.value = true }
 function closeDialog() { showDialog.value = false }
 
-function selectRecord(type: 'allergy' | 'diet') {
+function selectRecord(type: 'allergy' | 'diet' | 'medication') {
   closeDialog()
   // TODO: 기록 입력 폼으로 연결
-  console.log('선택한 기록 타입:', type)
+  console.log('선택한 기록 타입:', type, '| 날짜:', selectedDate.value ?? '오늘')
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -164,19 +196,59 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
         </h1>
       </div>
 
-      <!-- 데스크톱 전용 버튼 -->
-      <button class="btn-add-record btn-add-desktop" type="button" @click="openDialog">
-        <span class="btn-add-icon">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-            <path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-          </svg>
-        </span>
-        <span class="btn-add-label">기록 추가</span>
-      </button>
+      <!-- 데스크톱 전용 버튼 영역 -->
+      <div class="btn-add-desktop-wrap">
+        <Transition name="chip">
+          <div v-if="selectedDate" class="selected-date-chip">
+            <span class="chip-label">{{ selectedDateLabel }}</span>
+            <button class="chip-clear" type="button" aria-label="선택 해제" @click="selectedDate = null">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+        </Transition>
+        <button class="btn-add-record btn-add-desktop" type="button" @click="openDialog">
+          <span class="btn-add-icon">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+              <path d="M6.5 1v11M1 6.5h11" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="btn-add-label">기록 추가</span>
+        </button>
+      </div>
     </div>
 
-    <!-- 모바일 전용: 스탯 카드 위 우측 정렬 소형 버튼 -->
-    <div class="stats-bar">
+    <!-- 모바일 전용 액션 바 -->
+    <div class="mob-action-bar">
+      <!-- 왼쪽: 날짜 선택 영역 (항상 공간 유지, 레이아웃 고정) -->
+      <button
+        class="mob-date-area"
+        type="button"
+        :class="{ 'has-date': selectedDate }"
+        :aria-label="selectedDate ? '날짜 선택 해제' : '캘린더에서 날짜를 선택하세요'"
+        @click="selectedDate ? (selectedDate = null) : undefined"
+      >
+        <span class="mob-date-icon">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <rect x="1" y="3" width="14" height="12" rx="2.5" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M5 1v4M11 1v4M1 7h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="mob-date-text">
+          <template v-if="selectedDate">{{ selectedDateLabel }}</template>
+          <template v-else>날짜를 선택하세요</template>
+        </span>
+        <Transition name="mob-x">
+          <span v-if="selectedDate" class="mob-date-clear" aria-hidden="true">
+            <svg width="7" height="7" viewBox="0 0 10 10" fill="none">
+              <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+          </span>
+        </Transition>
+      </button>
+
+      <!-- 오른쪽: 기록 추가 버튼 (항상 고정) -->
       <button class="btn-add-record btn-add-mobile" type="button" @click="openDialog">
         <span class="btn-add-icon">
           <svg width="11" height="11" viewBox="0 0 13 13" fill="none" aria-hidden="true">
@@ -231,8 +303,12 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           v-for="(cell, idx) in calendar.cells"
           :key="idx"
           class="cal-cell"
-          :class="{ empty: cell.empty }"
+          :class="{
+            empty:    cell.empty,
+            selected: !cell.empty && selectedDate === cell.dateStr
+          }"
           :data-date="cell.dateStr"
+          @click="selectDate(cell.dateStr)"
         >
           <template v-if="!cell.empty">
             <span
@@ -301,6 +377,20 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
               <div class="rd-option-body">
                 <span class="rd-option-title">식단 기록</span>
                 <span class="rd-option-desc">오늘 먹은 음식과 식사 시간을 기록해요</span>
+              </div>
+              <div class="rd-option-arrow">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+            </button>
+
+            <!-- 약 복용 -->
+            <button class="rd-option" type="button" @click="selectRecord('medication')">
+              <div class="rd-option-icon medication">💊</div>
+              <div class="rd-option-body">
+                <span class="rd-option-title">약 복용 기록</span>
+                <span class="rd-option-desc">복용한 약 이름, 용량, 시간을 기록해요</span>
               </div>
               <div class="rd-option-arrow">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -393,44 +483,189 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   line-height: 1;
 }
 
-/* 데스크톱: 모바일 행 숨김 */
-.stats-bar { display: none; }
+/* ── 데스크톱 버튼 래퍼 ── */
+.btn-add-desktop-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ── 선택된 날짜 chip ── */
+.selected-date-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1.5px solid rgba(232, 135, 159, 0.4);
+  border-radius: 100px;
+  padding: 6px 10px 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e8879f;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(232, 135, 159, 0.12);
+}
+
+.chip-icon { font-size: 14px; line-height: 1; }
+
+.chip-label { font-size: 12.5px; }
+
+.chip-clear {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(232, 135, 159, 0.12);
+  color: #e8879f;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.18s;
+  padding: 0;
+  flex-shrink: 0;
+}
+.chip-clear:hover { background: rgba(232, 135, 159, 0.25); }
+
+/* chip 트랜지션 */
+.chip-enter-active { transition: opacity 0.2s ease, transform 0.2s ease; }
+.chip-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
+.chip-enter-from  { opacity: 0; transform: translateX(6px) scale(0.95); }
+.chip-leave-to    { opacity: 0; transform: translateX(6px) scale(0.95); }
+
+/* ── 모바일 액션 바 (기본: 숨김) ── */
+.mob-action-bar { display: none; }
 
 @media (max-width: 640px) {
   /* 인사말 영역의 데스크톱 버튼 숨김 */
-  .btn-add-desktop { display: none !important; }
-
-  /* margin-bottom 제거 */
+  .btn-add-desktop-wrap { display: none !important; }
   .page-greeting { margin-bottom: 2px !important; }
 
-  /* 모바일 버튼 행: 스탯 카드 바로 위 우측 정렬 */
-  .stats-bar {
+  /* ── 모바일 액션 바 ── */
+  .mob-action-bar {
     display: flex;
-    justify-content: flex-end;
-    margin-bottom: 10px;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border: 1.5px solid #f0f0f0;
+    border-radius: 16px;
+    padding: 5px 5px 5px 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   }
 
-  /* 소형 알약 버튼 */
-  .btn-add-mobile {
-    height: 32px;
-    padding: 0 12px 0 8px;
-    gap: 6px;
-    border-radius: 100px;
-    width: auto;
+  /* 날짜 영역: flex 1로 버튼이 항상 오른쪽 고정 */
+  .mob-date-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: none;
+    border: none;
+    padding: 6px 0;
+    cursor: default;
+    text-align: left;
+    min-width: 0;
+    font-family: 'Noto Sans KR', sans-serif;
   }
-  .btn-add-mobile .btn-add-icon {
+  .mob-date-area.has-date { cursor: pointer; }
+
+  .mob-date-icon {
+    color: #ccc;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    transition: color 0.2s;
+  }
+  .mob-date-area.has-date .mob-date-icon { color: #e8879f; }
+
+  .mob-date-text {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #ccc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.2s, font-weight 0.2s;
+  }
+  .mob-date-area.has-date .mob-date-text {
+    color: #e8879f;
+    font-weight: 700;
+  }
+
+  /* × 버튼 */
+  .mob-date-clear {
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.20);
+    background: rgba(232, 135, 159, 0.12);
+    color: #e8879f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  /* × 트랜지션 (버튼 위치에 영향 없음 — flex:1 내부) */
+  .mob-x-enter-active { transition: opacity 0.18s ease, transform 0.18s ease; }
+  .mob-x-leave-active { transition: opacity 0.12s ease, transform 0.12s ease; }
+  .mob-x-enter-from  { opacity: 0; transform: scale(0.6); }
+  .mob-x-leave-to    { opacity: 0; transform: scale(0.6); }
+
+  /* 기록 추가 버튼 — 항상 우측 고정 */
+  .btn-add-mobile {
+    flex-shrink: 0;
+    height: 36px;
+    padding: 0 14px 0 10px;
+    gap: 6px;
+    border-radius: 12px;
+    width: auto;
+  }
+  .btn-add-mobile .btn-add-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.22);
     border: 1px solid rgba(255, 255, 255, 0.28);
   }
   .btn-add-mobile .btn-add-label {
     display: flex;
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 700;
   }
 }
+
+
+/* ════════════════════════════════
+   캘린더 날짜 선택
+   ════════════════════════════════ */
+
+/* 비어있지 않은 셀: 클릭 가능 커서 */
+.cal-cell:not(.empty) {
+  cursor: pointer;
+  border-radius: 10px;
+  transition: background 0.15s;
+}
+
+/* 호버 */
+.cal-cell:not(.empty):hover {
+  background: rgba(232, 135, 159, 0.07);
+}
+
+/* 선택된 셀 */
+.cal-cell.selected {
+  background: rgba(232, 135, 159, 0.10);
+  box-shadow: inset 0 0 0 1.5px rgba(232, 135, 159, 0.45);
+}
+
+/* 선택된 셀 숫자 — today가 아닌 경우에만 핑크 강조 */
+.cal-cell.selected .cal-num:not(.today) {
+  color: #e8879f;
+  font-weight: 800;
+}
+
+/* 다이얼로그 아이볼 아이콘 */
+.rd-eyebrow-icon { margin-right: 4px; }
 
 
 /* ════════════════════════════════
@@ -572,6 +807,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .rd-option.diet:hover { border-color: rgba(74, 222, 128, 0.50); }
 .rd-option.diet:hover .rd-option-title { color: #22c55e; }
 
+/* 약 복용 카드 hover 색상 */
+.rd-option.medication:hover { border-color: rgba(99, 155, 255, 0.50); }
+.rd-option.medication:hover .rd-option-title { color: #4f8ef7; }
+
 /* 아이콘 */
 .rd-option-icon {
   width: 52px;
@@ -583,8 +822,9 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   font-size: 26px;
   flex-shrink: 0;
 }
-.rd-option-icon.allergy { background: #FEF0F4; }
-.rd-option-icon.diet    { background: #f0fdf4; }
+.rd-option-icon.allergy    { background: #FEF0F4; }
+.rd-option-icon.diet       { background: #f0fdf4; }
+.rd-option-icon.medication { background: #eff5ff; }
 
 /* 텍스트 */
 .rd-option-body {
