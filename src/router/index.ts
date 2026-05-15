@@ -27,6 +27,18 @@ const router = createRouter({
       name: 'verify-email',
       component: () => import('@/views/VerifyEmailView.vue')
     },
+    {
+      path: '/diet-record',
+      name: 'diet-record',
+      component: () => import('@/views/DietRecordView.vue'),
+      meta: { requiresAuth: true, requiresVerified: true }
+    },
+    {
+      path: '/allergy-record',
+      name: 'allergy-record',
+      component: () => import('@/views/AllergyRecordView.vue'),
+      meta: { requiresAuth: true, requiresVerified: true }
+    },
     { path: '/:pathMatch(.*)*', redirect: '/' }
   ]
 })

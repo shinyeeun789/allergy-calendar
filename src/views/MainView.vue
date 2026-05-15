@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { signOut } from 'firebase/auth'
-import { auth } from '@/firebase'
 import { useAuthStore } from '@/stores/auth'
+import AppHeader, { type NavTab } from '@/components/AppHeader.vue'
+import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore'
+import { db } from '@/firebase'
 
 const router    = useRouter()
 const authStore = useAuthStore()
@@ -14,12 +15,12 @@ const userName = computed(() => {
   if (!u) return '사용자'
   return u.displayName || u.email?.split('@')[0] || '사용자'
 })
-const userInitial = computed(() => userName.value.charAt(0).toUpperCase())
 
-async function handleLogout() {
-  await signOut(auth)
-  router.push('/login')
-}
+const NAV_TABS: NavTab[] = [
+  { key: 'home',    label: '홈' },
+  { key: 'records', label: '기록' },
+  { key: 'stats',   label: '통계' },
+]
 
 // ── 날짜 헤더 ──
 const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
@@ -58,12 +59,51 @@ interface CalCell {
   isRed?: boolean
   isBlue?: boolean
   holidayName?: string | null
+  allergyIntensity?: number   // 해당 날짜의 최대 알러지 강도 (1-10), 없으면 undefined
 }
 
 const today        = new Date()
 const currentYear  = ref(today.getFullYear())
 const currentMonth = ref(today.getMonth())
 const activeTab    = ref<'home' | 'records' | 'stats'>('home')
+
+// ── 알러지 통계 ──
+const allergyMonthCount = ref(0)
+const allergyDayMap     = ref<Map<string, number>>(new Map())
+
+async function fetchAllergyRecords() {
+  const uid = authStore.user?.uid
+  if (!uid) return
+
+  const year  = currentYear.value
+  const month = currentMonth.value
+
+  const start = Timestamp.fromDate(new Date(year, month, 1, 0, 0, 0))
+  const end   = Timestamp.fromDate(new Date(year, month + 1, 1, 0, 0, 0))
+
+  const q = query(
+    collection(db, 'users', uid, 'allergyRecords'),
+    where('date', '>=', start),
+    where('date', '<',  end),
+  )
+
+  const snap = await getDocs(q)
+  const map  = new Map<string, number>()
+
+  snap.forEach(doc => {
+    const data      = doc.data()
+    const ts        = data.date as Timestamp
+    const d         = ts.toDate()
+    const dateStr   = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const intensity = (data.intensity as number) ?? 0
+    map.set(dateStr, Math.max(map.get(dateStr) ?? 0, intensity))
+  })
+
+  allergyDayMap.value     = map
+  allergyMonthCount.value = snap.size
+}
+
+watch([currentYear, currentMonth], fetchAllergyRecords, { immediate: true })
 
 const calTitle = computed(() =>
   `${currentYear.value}년 ${currentMonth.value + 1}월`
@@ -87,8 +127,9 @@ const calendar = computed(() => {
     const isToday     = today.getFullYear() === year && today.getMonth() === month && today.getDate() === d
     const isRed       = dow === 0 || !!holidayName
     const isBlue      = dow === 6 && !holidayName
-    const dateStr     = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-    cells.push({ empty: false, date: d, dateStr, isToday, isRed, isBlue, holidayName })
+    const dateStr        = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    const allergyIntensity = allergyDayMap.value.get(dateStr)
+    cells.push({ empty: false, date: d, dateStr, isToday, isRed, isBlue, holidayName, allergyIntensity })
   }
 
   const trailing = totalCells - firstDay - daysInMonth
@@ -148,8 +189,13 @@ function closeDialog() { showDialog.value = false }
 
 function selectRecord(type: 'allergy' | 'diet' | 'medication') {
   closeDialog()
-  // TODO: 기록 입력 폼으로 연결
-  console.log('선택한 기록 타입:', type, '| 날짜:', selectedDate.value ?? '오늘')
+  const dateQuery = selectedDate.value ? `?date=${selectedDate.value}` : ''
+  if (type === 'diet')     router.push(`/diet-record${dateQuery}`)
+  else if (type === 'allergy') router.push(`/allergy-record${dateQuery}`)
+  else {
+    // TODO: 약 복용 기록 폼 연결
+    console.log('선택한 기록 타입:', type, '| 날짜:', selectedDate.value ?? '오늘')
+  }
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -160,30 +206,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
-  <!-- Nav -->
-  <nav>
-    <div class="nav-inner">
-      <a href="#" class="nav-logo">
-        <span class="logo-badge">A</span>
-        <span class="logo-wordmark">Check</span>
-      </a>
-      <div class="nav-tabs">
-        <button class="nav-tab" :class="{ active: activeTab === 'home' }"    @click="activeTab = 'home'">홈</button>
-        <button class="nav-tab" :class="{ active: activeTab === 'records' }" @click="activeTab = 'records'">기록</button>
-        <button class="nav-tab" :class="{ active: activeTab === 'stats' }"   @click="activeTab = 'stats'">통계</button>
-      </div>
-      <div class="nav-user">
-        <div class="user-chip">
-          <div class="user-avatar">
-            <img v-if="user?.photoURL" :src="user.photoURL" :alt="userName" style="display:block">
-            <span v-else>{{ userInitial }}</span>
-          </div>
-          <span class="user-chip-name">{{ userName }}</span>
-        </div>
-        <button class="btn-logout-sm" type="button" @click="handleLogout">로그아웃</button>
-      </div>
-    </div>
-  </nav>
+  <AppHeader :tabs="NAV_TABS" v-model:activeTab="activeTab" />
 
   <!-- Page Body -->
   <div class="page-body">
@@ -260,16 +283,16 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
     </div>
 
     <!-- Stats -->
-    <div class="stats-row">
+    <div class="stats-row" id="allergy-stats">
       <div class="stat-card">
         <div class="stat-icon-wrap pink">🤧</div>
         <div class="stat-body">
-          <div class="stat-num"><span>0</span><span class="stat-unit">회</span></div>
+          <div class="stat-num"><span>{{ allergyMonthCount }}</span><span class="stat-unit">회</span></div>
           <div class="stat-label">이번 달 알러지</div>
           <div class="stat-trend"></div>
         </div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card" id="diet-stats">
         <div class="stat-icon-wrap green">🥗</div>
         <div class="stat-body">
           <div class="stat-num"><span>0</span><span class="stat-unit">회</span></div>
@@ -305,7 +328,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           class="cal-cell"
           :class="{
             empty:    cell.empty,
-            selected: !cell.empty && selectedDate === cell.dateStr
+            selected: !cell.empty && selectedDate === cell.dateStr,
+            'has-allergy-mild':     !cell.empty && !!cell.allergyIntensity && cell.allergyIntensity <= 3,
+            'has-allergy-moderate': !cell.empty && !!cell.allergyIntensity && cell.allergyIntensity >= 4 && cell.allergyIntensity <= 6,
+            'has-allergy-severe':   !cell.empty && !!cell.allergyIntensity && cell.allergyIntensity >= 7,
           }"
           :data-date="cell.dateStr"
           @click="selectDate(cell.dateStr)"
@@ -320,7 +346,18 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
               }"
             >{{ cell.date }}</span>
             <span v-if="cell.holidayName" class="cal-holiday">{{ cell.holidayName }}</span>
-            <div class="cal-dots"></div>
+            <div class="cal-dots">
+              <span
+                v-if="cell.allergyIntensity"
+                class="allergy-badge"
+                :class="{
+                  'badge-mild':     cell.allergyIntensity <= 3,
+                  'badge-moderate': cell.allergyIntensity >= 4 && cell.allergyIntensity <= 6,
+                  'badge-severe':   cell.allergyIntensity >= 7,
+                }"
+                :aria-label="`알러지 강도 ${cell.allergyIntensity}`"
+              >{{ cell.allergyIntensity }}</span>
+            </div>
           </template>
         </div>
       </div>
@@ -345,7 +382,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           <!-- 헤더 -->
           <div class="rd-header">
             <div class="rd-header-text">
-              <p class="rd-eyebrow">{{ greetingDate }}</p>
+              <p class="rd-eyebrow">{{ selectedDate ? selectedDateFull : greetingDate }}</p>
               <h3 class="rd-title">어떤 기록을 추가할까요?</h3>
             </div>
             <button class="rd-close" type="button" aria-label="닫기" @click="closeDialog">
@@ -362,7 +399,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
               <div class="rd-option-icon allergy">🤧</div>
               <div class="rd-option-body">
                 <span class="rd-option-title">알러지 기록</span>
-                <span class="rd-option-desc">증상, 원인 음식, 반응 정도를 기록해요</span>
+                <span class="rd-option-desc">증상, 발생 부위, 반응 정도를 기록해요</span>
               </div>
               <div class="rd-option-arrow">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -407,507 +444,106 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 <style scoped>
 /* ════════════════════════════════
-   기록 추가 버튼
+   달력 셀 — 알러지 심각도 액센트
    ════════════════════════════════ */
-.btn-add-record {
+
+/* 심각도별 셀 상단 border-top 컬러 */
+.has-allergy-mild     { border-top-color: rgba(134, 239, 172, 0.55) !important; }
+.has-allergy-moderate { border-top-color: rgba(251, 191,  36, 0.50) !important; }
+.has-allergy-severe   { border-top-color: rgba(232, 135, 159, 0.65) !important; }
+
+/* ════════════════════════════════
+   알러지 뱃지
+   ════════════════════════════════ */
+
+.cal-dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 5px;
+  min-height: 20px;
+}
+
+/* 공통 chip 베이스 */
+.allergy-badge {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  padding: 0 22px 0 16px;
-  height: 46px;
-  background: linear-gradient(135deg, #f4a7bb 0%, #e8879f 100%);
-  border: none;
-  border-radius: 100px;
-  color: #fff;
-  font-family: 'Noto Sans KR', sans-serif;
-  cursor: pointer;
-  white-space: nowrap;
-  position: relative;
-  overflow: hidden;
-  box-shadow:
-    0 2px 12px rgba(232, 135, 159, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  transition: box-shadow 0.3s ease, filter 0.3s ease;
-}
-
-/* 광택 레이어 — 평소에는 고정 */
-.btn-add-record::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -80%;
-  width: 55%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.32), transparent);
-  transform: skewX(-18deg);
-  transition: left 0.55s ease;
-  pointer-events: none;
-}
-
-/* hover: 광택이 왼쪽→오른쪽으로 훑고 지나감 */
-.btn-add-record:hover::before {
-  left: 135%;
-}
-
-.btn-add-record:hover {
-  filter: brightness(1.06);
-  box-shadow:
-    0 4px 20px rgba(232, 135, 159, 0.48),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
-}
-
-.btn-add-record:active {
-  filter: brightness(0.97);
-  box-shadow:
-    0 1px 6px rgba(232, 135, 159, 0.30),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  transition-duration: 0.08s;
-}
-
-.btn-add-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.20);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.btn-add-label {
-  font-size: 14px;
+  gap: 3px;
+  padding: 2px 7px 2px 5px;
+  border-radius: 99px;
+  font-size: 9.5px;
   font-weight: 700;
-  letter-spacing: 0.1px;
   line-height: 1;
+  letter-spacing: 0.01em;
+  user-select: none;
+  transition: transform 0.12s ease;
 }
 
-/* ── 데스크톱 버튼 래퍼 ── */
-.btn-add-desktop-wrap {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+/* 클릭(호버) 시 살짝 떠오르는 느낌 */
+.cal-cell:hover .allergy-badge {
+  transform: translateY(-1px);
 }
 
-/* ── 선택된 날짜 chip ── */
-.selected-date-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: #fff;
-  border: 1.5px solid rgba(232, 135, 159, 0.4);
-  border-radius: 100px;
-  padding: 6px 10px 6px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #e8879f;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(232, 135, 159, 0.12);
-}
-
-.chip-icon { font-size: 14px; line-height: 1; }
-
-.chip-label { font-size: 12.5px; }
-
-.chip-clear {
-  width: 20px;
-  height: 20px;
+/* dot (::before) */
+.allergy-badge::before {
+  content: '';
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  border: none;
-  background: rgba(232, 135, 159, 0.12);
-  color: #e8879f;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.18s;
-  padding: 0;
   flex-shrink: 0;
 }
-.chip-clear:hover { background: rgba(232, 135, 159, 0.25); }
 
-/* chip 트랜지션 */
-.chip-enter-active { transition: opacity 0.2s ease, transform 0.2s ease; }
-.chip-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
-.chip-enter-from  { opacity: 0; transform: translateX(6px) scale(0.95); }
-.chip-leave-to    { opacity: 0; transform: translateX(6px) scale(0.95); }
+/* ── 경미 (1–3) — 세이지 그린 ── */
+.badge-mild {
+  background: rgba(240, 253, 244, 0.95);
+  color: #166534;
+  border: 1px solid rgba(134, 239, 172, 0.55);
+}
+.badge-mild::before {
+  background: #22c55e;
+  box-shadow: 0 0 0 2px rgba(134, 239, 172, 0.30);
+}
 
-/* ── 모바일 액션 바 (기본: 숨김) ── */
-.mob-action-bar { display: none; }
+/* ── 보통 (4–6) — 웜 앰버 ── */
+.badge-moderate {
+  background: rgba(255, 251, 235, 0.95);
+  color: #92400e;
+  border: 1px solid rgba(253, 211,  77, 0.55);
+}
+.badge-moderate::before {
+  background: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(253, 211, 77, 0.30);
+}
 
+/* ── 심각 (7–10) — 브랜드 로즈 핑크 ── */
+.badge-severe {
+  background: rgba(254, 242, 248, 0.97);
+  color: #9d174d;
+  border: 1px solid rgba(232, 135, 159, 0.50);
+  animation: badge-ping 2.4s ease-in-out infinite;
+}
+.badge-severe::before {
+  background: var(--main-pink);
+  box-shadow: 0 0 0 2px rgba(232, 135, 159, 0.25);
+}
+
+@keyframes badge-ping {
+  0%   { box-shadow: 0 0 0 0   rgba(232, 135, 159, 0.40); }
+  55%  { box-shadow: 0 0 0 4px rgba(232, 135, 159, 0.08); }
+  100% { box-shadow: 0 0 0 0   rgba(232, 135, 159, 0.00); }
+}
+
+/* ── 모바일 축소 ── */
 @media (max-width: 640px) {
-  /* 인사말 영역의 데스크톱 버튼 숨김 */
-  .btn-add-desktop-wrap { display: none !important; }
-  .page-greeting { margin-bottom: 2px !important; }
-
-  /* ── 모바일 액션 바 ── */
-  .mob-action-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: #fff;
-    border: 1.5px solid #f0f0f0;
-    border-radius: 16px;
-    padding: 5px 5px 5px 14px;
-    margin-bottom: 12px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  .allergy-badge {
+    font-size: 8px;
+    padding: 1.5px 5px 1.5px 4px;
+    gap: 2px;
   }
-
-  /* 날짜 영역: flex 1로 버튼이 항상 오른쪽 고정 */
-  .mob-date-area {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    background: none;
-    border: none;
-    padding: 6px 0;
-    cursor: default;
-    text-align: left;
-    min-width: 0;
-    font-family: 'Noto Sans KR', sans-serif;
-  }
-  .mob-date-area.has-date { cursor: pointer; }
-
-  .mob-date-icon {
-    color: #ccc;
-    display: flex;
-    align-items: center;
-    flex-shrink: 0;
-    transition: color 0.2s;
-  }
-  .mob-date-area.has-date .mob-date-icon { color: #e8879f; }
-
-  .mob-date-text {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: #ccc;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    transition: color 0.2s, font-weight 0.2s;
-  }
-  .mob-date-area.has-date .mob-date-text {
-    color: #e8879f;
-    font-weight: 700;
-  }
-
-  /* × 버튼 */
-  .mob-date-clear {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: rgba(232, 135, 159, 0.12);
-    color: #e8879f;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  /* × 트랜지션 (버튼 위치에 영향 없음 — flex:1 내부) */
-  .mob-x-enter-active { transition: opacity 0.18s ease, transform 0.18s ease; }
-  .mob-x-leave-active { transition: opacity 0.12s ease, transform 0.12s ease; }
-  .mob-x-enter-from  { opacity: 0; transform: scale(0.6); }
-  .mob-x-leave-to    { opacity: 0; transform: scale(0.6); }
-
-  /* 기록 추가 버튼 — 항상 우측 고정 */
-  .btn-add-mobile {
-    flex-shrink: 0;
-    height: 36px;
-    padding: 0 14px 0 10px;
-    gap: 6px;
-    border-radius: 12px;
-    width: auto;
-  }
-  .btn-add-mobile .btn-add-icon {
-    width: 20px;
-    height: 20px;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.22);
-    border: 1px solid rgba(255, 255, 255, 0.28);
-  }
-  .btn-add-mobile .btn-add-label {
-    display: flex;
-    font-size: 12.5px;
-    font-weight: 700;
-  }
-}
-
-
-/* ════════════════════════════════
-   캘린더 날짜 선택
-   ════════════════════════════════ */
-
-/* 비어있지 않은 셀: 클릭 가능 커서 */
-.cal-cell:not(.empty) {
-  cursor: pointer;
-  border-radius: 10px;
-  transition: background 0.15s;
-}
-
-/* 호버 */
-.cal-cell:not(.empty):hover {
-  background: rgba(232, 135, 159, 0.07);
-}
-
-/* 선택된 셀 */
-.cal-cell.selected {
-  background: rgba(232, 135, 159, 0.10);
-  box-shadow: inset 0 0 0 1.5px rgba(232, 135, 159, 0.45);
-}
-
-/* 선택된 셀 숫자 — today가 아닌 경우에만 핑크 강조 */
-.cal-cell.selected .cal-num:not(.today) {
-  color: #e8879f;
-  font-weight: 800;
-}
-
-/* 다이얼로그 아이볼 아이콘 */
-.rd-eyebrow-icon { margin-right: 4px; }
-
-
-/* ════════════════════════════════
-   기록 추가 다이얼로그
-   ════════════════════════════════ */
-.rd-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(10, 10, 10, 0.48);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  z-index: 500;
-  display: flex;
-  align-items: flex-end;         /* 바텀시트 */
-  justify-content: center;
-  padding: 0 0 env(safe-area-inset-bottom, 0);
-}
-
-@media (min-width: 640px) {
-  .rd-backdrop {
-    align-items: center;         /* 데스크톱: 중앙 */
-    padding: 24px;
-  }
-}
-
-.rd-sheet {
-  width: 100%;
-  max-width: 480px;
-  background: #fff;
-  border-radius: 28px 28px 0 0;
-  padding: 12px 24px 36px;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-@media (min-width: 640px) {
-  .rd-sheet {
-    border-radius: 28px;
-    padding: 28px 28px 32px;
-  }
-  .rd-handle { display: none; }
-}
-
-/* 핸들바 */
-.rd-handle {
-  width: 40px;
-  height: 4px;
-  border-radius: 2px;
-  background: #e8e8e8;
-  margin: 0 auto 20px;
-  flex-shrink: 0;
-}
-
-/* 헤더 */
-.rd-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 24px;
-}
-
-.rd-eyebrow {
-  font-size: 12px;
-  color: #bbb;
-  font-weight: 500;
-  margin: 0 0 4px;
-  letter-spacing: 0.1px;
-}
-
-.rd-title {
-  font-size: 20px;
-  font-weight: 800;
-  color: #111;
-  margin: 0;
-  letter-spacing: -0.4px;
-  line-height: 1.3;
-}
-
-.rd-close {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: none;
-  background: #f4f4f4;
-  color: #888;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-  margin-top: 2px;
-  transition: background 0.18s, color 0.18s;
-}
-.rd-close:hover { background: #ebebeb; color: #333; }
-
-/* 선택 카드 목록 */
-.rd-options {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.rd-option {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  width: 100%;
-  padding: 18px 16px 18px 18px;
-  border: 1.5px solid #f0f0f0;
-  border-radius: 18px;
-  background: #fafafa;
-  cursor: pointer;
-  font-family: 'Noto Sans KR', sans-serif;
-  text-align: left;
-  transition: border-color 0.2s, background 0.2s, transform 0.18s ease, box-shadow 0.2s;
-  position: relative;
-  overflow: hidden;
-}
-
-.rd-option:hover {
-  background: #fff;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07);
-}
-
-.rd-option:active {
-  transform: translateY(0);
-  box-shadow: none;
-  transition-duration: 0.08s;
-}
-
-/* 알러지 카드 hover 색상 */
-.rd-option.allergy:hover { border-color: rgba(232, 135, 159, 0.45); }
-.rd-option.allergy:hover .rd-option-title { color: #e8879f; }
-
-/* 식단 카드 hover 색상 */
-.rd-option.diet:hover { border-color: rgba(74, 222, 128, 0.50); }
-.rd-option.diet:hover .rd-option-title { color: #22c55e; }
-
-/* 약 복용 카드 hover 색상 */
-.rd-option.medication:hover { border-color: rgba(99, 155, 255, 0.50); }
-.rd-option.medication:hover .rd-option-title { color: #4f8ef7; }
-
-/* 아이콘 */
-.rd-option-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-  flex-shrink: 0;
-}
-.rd-option-icon.allergy    { background: #FEF0F4; }
-.rd-option-icon.diet       { background: #f0fdf4; }
-.rd-option-icon.medication { background: #eff5ff; }
-
-/* 텍스트 */
-.rd-option-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.rd-option-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #111;
-  transition: color 0.2s;
-}
-
-.rd-option-desc {
-  font-size: 12.5px;
-  color: #aaa;
-  font-weight: 400;
-  line-height: 1.4;
-}
-
-/* 화살표 */
-.rd-option-arrow {
-  color: #ccc;
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  transition: color 0.2s, transform 0.2s;
-}
-
-.rd-option:hover .rd-option-arrow {
-  transform: translateX(3px);
-  color: #aaa;
-}
-
-
-/* ════════════════════════════════
-   다이얼로그 Transition
-   ════════════════════════════════ */
-.dialog-enter-active {
-  transition: opacity 0.22s ease;
-}
-.dialog-leave-active {
-  transition: opacity 0.18s ease;
-}
-.dialog-enter-from,
-.dialog-leave-to {
-  opacity: 0;
-}
-
-/* 시트 자체 애니메이션 */
-.dialog-enter-active .rd-sheet {
-  animation: sheetSlideUp 0.28s cubic-bezier(0.32, 0.72, 0, 1);
-}
-.dialog-leave-active .rd-sheet {
-  animation: sheetSlideDown 0.18s ease forwards;
-}
-
-@keyframes sheetSlideUp {
-  from { transform: translateY(32px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
-}
-@keyframes sheetSlideDown {
-  from { transform: translateY(0);    opacity: 1; }
-  to   { transform: translateY(24px); opacity: 0; }
-}
-
-@media (min-width: 640px) {
-  .dialog-enter-active .rd-sheet {
-    animation: sheetScaleIn 0.26s cubic-bezier(0.32, 0.72, 0, 1);
-  }
-  .dialog-leave-active .rd-sheet {
-    animation: sheetScaleOut 0.18s ease forwards;
-  }
-  @keyframes sheetScaleIn {
-    from { transform: scale(0.95) translateY(8px); opacity: 0; }
-    to   { transform: scale(1)    translateY(0);   opacity: 1; }
-  }
-  @keyframes sheetScaleOut {
-    from { transform: scale(1)    translateY(0);   opacity: 1; }
-    to   { transform: scale(0.96) translateY(4px); opacity: 0; }
+  .allergy-badge::before {
+    width: 4px;
+    height: 4px;
   }
 }
 </style>
