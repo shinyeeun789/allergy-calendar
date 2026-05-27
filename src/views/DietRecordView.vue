@@ -5,18 +5,11 @@ import { httpsCallable } from 'firebase/functions'
 import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { functions, db } from '@/firebase'
 import { useAuthStore } from '@/stores/auth'
-import AppHeader, { type NavTab } from '@/components/AppHeader.vue'
+import AppHeader from '@/components/AppHeader.vue'
 
 const router    = useRouter()
 const route     = useRoute()
 const authStore = useAuthStore()
-
-const NAV_TABS: NavTab[] = [
-  { key: 'home',    label: '홈' },
-  { key: 'records', label: '기록' },
-  { key: 'stats',   label: '통계' },
-]
-const activeTab = ref('records')
 
 // ── 날짜 파싱 ──────────────────────────────────────────────
 const DAY_KO = ['일', '월', '화', '수', '목', '금', '토']
@@ -65,6 +58,10 @@ function getDefaultMeal(): MealType {
 
 const selectedMeal = ref<MealType>(getDefaultMeal())
 const activeMeal = computed(() => MEAL_TABS.find(t => t.key === selectedMeal.value)!)
+
+// ── 식사 시간 ───────────────────────────────────────────────────
+const now = new Date()
+const selectedTime = ref<string>(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`)
 
 // ── 음식 항목 ──────────────────────────────────────────────
 interface FoodItem {
@@ -207,12 +204,16 @@ function validate(): boolean {
 async function handleSubmit() {
   if (!validate()) return
   isSubmitting.value = true
-  try {
-    const uid = authStore.user!.uid
+  errorMsg.value = ''
 
-    // dateParam(YYYY-MM-DD) → 해당 날짜 자정 Timestamp
+  try {
+    const uid = authStore.user?.uid
+    if (!uid) throw new Error('로그인이 필요합니다.')
+
+    // dateParam(YYYY-MM-DD) & selectedTime(HH:mm) → 해당 날짜/시간 Timestamp
     const [year, month, day] = dateParam.value.split('-').map(Number)
-    const dateTimestamp = Timestamp.fromDate(new Date(year, month - 1, day, 0, 0, 0))
+    const [hour, minute] = selectedTime.value.split(':').map(Number)
+    const dateTimestamp = Timestamp.fromDate(new Date(year, month - 1, day, hour, minute))
 
     const foods = foodItems.value
       .filter(f => f.name.trim())
@@ -234,11 +235,19 @@ async function handleSubmit() {
       createdAt: serverTimestamp(),
     })
 
+    // 저장 성공 → 홈으로 이동 전 isSubmitting 해제 (unmount 경고 방지)
+    isSubmitting.value = false
     router.push('/')
-  } catch (e) {
+  } catch (e: any) {
     console.error('[dietRecord] 저장 오류:', e)
-    errorMsg.value = '저장 중 오류가 발생했습니다. 다시 시도해주세요.'
-  } finally {
+    const msg: string = e?.message ?? ''
+    if (msg.includes('로그인')) {
+      errorMsg.value = '로그인이 필요합니다. 다시 로그인 후 시도해주세요.'
+    } else if (msg.includes('permission') || msg.includes('Missing or insufficient')) {
+      errorMsg.value = '저장 권한이 없습니다. 잠시 후 다시 시도해주세요.'
+    } else {
+      errorMsg.value = '저장 중 오류가 발생했습니다. 다시 시도해주세요.'
+    }
     isSubmitting.value = false
   }
 }
@@ -287,15 +296,10 @@ function goBack() {
   if (window.history.length > 1) router.back()
   else router.push('/')
 }
-
-// ── 탭 클릭 ────────────────────────────────────────────────
-function onTabClick(key: string) {
-  if (key !== 'records') router.push('/')
-}
 </script>
 
 <template>
-  <AppHeader :tabs="NAV_TABS" v-model:activeTab="activeTab" @tab-click="onTabClick" />
+  <AppHeader pageTitle="식단 기록" />
 
   <div class="page-body diet-page">
 
@@ -395,6 +399,17 @@ function onTabClick(key: string) {
               </svg>
             </span>
           </button>
+        </div>
+      </div>
+
+      <!-- 식사 시간 -->
+      <div class="diet-section">
+        <div class="diet-section-label">
+          <span class="diet-section-dot"></span>
+          식사 시간
+        </div>
+        <div class="time-input-wrapper">
+          <input type="time" class="time-input" v-model="selectedTime" />
         </div>
       </div>
 
@@ -666,3 +681,28 @@ function onTabClick(key: string) {
     </form>
   </div>
 </template>
+
+<style scoped>
+.time-input-wrapper {
+  position: relative;
+}
+
+.time-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #EAECEE;
+  border-radius: 10px;
+  background-color: #F9FAFB;
+  font-size: 1rem;
+  line-height: 1.5;
+  font-family: inherit;
+  color: #333;
+  transition: border-color 0.2s;
+}
+
+.time-input:focus {
+  outline: none;
+  border-color: #B0B0B0;
+}
+</style>

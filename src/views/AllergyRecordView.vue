@@ -6,6 +6,7 @@ import { SKIN_SYMPTOM_CODES } from '@/constants/symptomCodes'
 import { db } from '@/firebase'
 import { useAuthStore } from '@/stores/auth'
 import AppHeader, { type NavTab } from '@/components/AppHeader.vue'
+import MedicationIntakeSheet from '@/components/MedicationIntakeSheet.vue'
 
 const router = useRouter()
 const route  = useRoute()
@@ -164,7 +165,12 @@ const intensityLevel = computed<IntensityLevel>(() => {
   return { label: '심각', color: '#E53E3E', desc: '잠을 자기 어렵거나 일상생활이 불가해요' }
 })
 
-const showMedModal = ref(false)
+const showMedModal  = ref(false)
+const showMedSheet  = ref(false)
+/** 저장된 알러지 doc ID (약 복용 연동용) */
+const savedAllergyId   = ref<string | null>(null)
+/** 저장된 알러지 발생 시각 (약 복용 연동용) */
+const savedAllergyDate = ref<Date | null>(null)
 
 // 팝업은 저장 완료 후 intensity >= 7일 때만 표시 (슬라이더 이벤트 아님)
 function goToMain() {
@@ -173,7 +179,11 @@ function goToMain() {
 }
 function goToMedRecord() {
   showMedModal.value = false
-  router.push('/medication-record' + (dateParam.value ? '?date=' + dateParam.value : ''))
+  showMedSheet.value = true
+}
+function onMedSheetClose() {
+  showMedSheet.value = false
+  router.push('/')
 }
 
 // ── 4. 발생 부위 (칩 선택기) ────────────────────────────────
@@ -283,13 +293,18 @@ async function handleSubmit() {
       new Date(year, month - 1, day, hours, minutes, 0)
     )
 
-    await addDoc(collection(db, 'users', uid, 'allergyRecords'), {
+    const docRef = await addDoc(collection(db, 'users', uid, 'allergyRecords'), {
       uid,
-      date:      dateTimestamp,          // Timestamp (날짜 + 시각 통합)
+      date:      dateTimestamp,               // Timestamp (날짜 + 시각 통합)
       symptoms:  [...selectedSymptoms.value], // 공통코드 배열 ["100","201",...]
       intensity: intensity.value,
       createdAt: serverTimestamp(),
     })
+
+    // 약 복용 연동을 위해 doc ID와 시각 보관
+    savedAllergyId.value   = docRef.id
+    savedAllergyDate.value = new Date(year, month - 1, day, hours, minutes, 0)
+
     // 저장 성공 → 강도 7 이상이면 약 복용 팝업, 아니면 메인으로
     if (intensity.value >= 7) {
       showMedModal.value = true
@@ -311,7 +326,7 @@ function goBack() {
 </script>
 
 <template>
-  <AppHeader :tabs="NAV_TABS" v-model:activeTab="activeTab" @tab-click="onTabClick" />
+  <AppHeader pageTitle="알러지 기록" />
 
   <div class="page-body allergy-page">
 
@@ -497,6 +512,15 @@ function goBack() {
 
     </form>
   </div>
+
+  <!-- ── 약 복용 기록 바텀시트 (알러지 연동) ── -->
+  <MedicationIntakeSheet
+    :visible="showMedSheet"
+    :allergyRecordId="savedAllergyId"
+    :allergyDate="savedAllergyDate"
+    @close="onMedSheetClose"
+    @saved="onMedSheetClose"
+  />
 
   <!-- ── 약 복용 모달 ── -->
   <Teleport to="body">
