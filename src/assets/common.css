@@ -1333,13 +1333,12 @@ nav {
 }
 
 .cal-cell {
-    padding: 12px 6px 10px; /* 패딩 상하 확대 */
-    border-top: 2px solid #f0f0f0;
+    padding: 12px 6px 10px;
     display: flex;
     flex-direction: column;
     align-items: center;
     cursor: pointer;
-    transition: background 0.15s, border-top-color 0.2s;
+    transition: background 0.18s;
     border-radius: 12px;
     position: relative;
     overflow: hidden;
@@ -1348,17 +1347,11 @@ nav {
     background: rgba(232, 135, 159, 0.07);
 }
 .cal-cell.selected {
-    background: rgba(232, 135, 159, 0.10);
+    /*background: rgba(232, 135, 159, 0.10);*/
     box-shadow: inset 0 0 0 1.5px rgba(232, 135, 159, 0.45);
-}
-.cal-cell.selected .cal-num:not(.today) {
-    color: #e8879f;
-    font-weight: 800;
 }
 .cal-cell.empty {
     cursor: default;
-    border-top-color: transparent;
-    transition: none;
 }
 
 /* Date number */
@@ -1439,19 +1432,19 @@ nav {
     .stat-card { padding: 20px 22px; }
     .cal-header { padding: 20px 16px 16px; }
     .cal-day-headers, .cal-grid { padding: 0 4px; }
-    .cal-num { width: 26px; height: 26px; font-size: 12px; }
-    .cal-grid { height: 500px; padding: 0 4px 8px; } /* 기존 370px에서 확대 */
+    .cal-num { width: 26px; height: 26px; font-size: 12px; margin-bottom: 3px; }
+    .cal-cell { padding: 8px 3px 6px; }
+    .cal-grid { height: 500px; padding: 0 4px 8px; }
     .cal-title { font-size: 17px; }
     .greeting-title { font-size: 22px; }
 
-    /* 모바일에서 공휴일 명칭 줄바꿈 허용 — ellipsis 제거 */
+    /* 모바일 공휴일: 1줄 고정, 말줄임 처리 */
     .cal-holiday {
         font-size: 8px;
-        white-space: normal;
-        word-break: keep-all;
-        overflow-wrap: break-word;
-        text-overflow: clip;
-        line-height: 1.25;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.2;
     }
 }
 
@@ -2744,26 +2737,46 @@ nav {
 .expand-down-enter-from, .expand-down-leave-to { opacity: 0; transform: translateY(-6px); max-height: 0; }
 .expand-down-enter-to, .expand-down-leave-from { max-height: 80px; }
 
+/*
+ * [iOS Safari 세로 가운데 정렬]
+ * input 자체에 height/padding 으로 세로 여백을 주면 iOS 가 내부
+ * ::-webkit-date-and-time-value 를 완벽히 가운데에 놓지 못한다.
+ * → 해결책: 시각적 스타일(보더·배경·그림자)을 래퍼로 이동하고
+ *   래퍼에 display:flex + align-items:center 를 적용해
+ *   자연 높이의 input 을 flex 로 가운데 정렬한다.
+ */
 .time-input-wrap {
     margin-top: 12px;
-    /* iOS에서 input[type=time]이 래퍼 밖으로 삐져나오지 않도록 */
-    width: 100%; overflow: hidden;
-}
-.time-input {
-    display: block;
-    width: 100%; min-width: 0;          /* iOS flex 컨텍스트 overflow 방지 */
-    box-sizing: border-box;             /* padding 포함해 100%로 제한 */
-    height: 48px;
+    display: flex;
+    align-items: center;        /* ← iOS 세로 가운데 정렬 핵심 */
+    width: 100%;
+    min-height: 52px;
+    overflow: hidden;
     border: 1.5px solid rgba(232, 135, 159, 0.4);
     border-radius: 12px;
-    padding: 0 16px;
-    font-size: 20px; font-weight: 700; font-family: 'Noto Sans KR', sans-serif;
-    color: var(--text-dark); background: #fafafa;
-    outline: none;
+    background: #fafafa;
     box-shadow: 0 0 0 3px rgba(232, 135, 159, 0.1);
-    /* iOS Safari 네이티브 time picker 스타일 정규화 */
+}
+.time-input {
+    /* 테두리·배경은 래퍼가 담당 → input 은 투명하게 내부를 채우기만 함 */
+    display: block;
+    flex: 1 1 0%;
+    width: 100%; min-width: 0;
+    box-sizing: border-box;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    /* height 미지정 → 자연 높이로 렌더링 → flex 가 가운데 배치 */
+    padding: 0 16px;
+    line-height: 1;
+    font-size: 20px; font-weight: 700; font-family: 'Noto Sans KR', sans-serif;
+    color: var(--text-dark);
+    outline: none;
     -webkit-appearance: none;
     appearance: none;
+}
+.time-input::-webkit-date-and-time-value {
+    text-align: left;
 }
 
 /* ── 2. 증상 종류 ── */
@@ -3040,4 +3053,555 @@ nav {
 
     .photo-slot          { width: 88px; height: 88px; }
     .allergy-submit-btn  { height: 50px; font-size: 15px; }
+}
+
+/* ════════════════════════════════════════════
+   ── Diet Record — 툴팁 / 검색 박스 / 음식 목록 ──
+   ════════════════════════════════════════════ */
+
+/* ── 툴팁 트리거 버튼 ── */
+.diet-section-label {
+  position: relative; /* 툴팁 absolute 기준점 */
+}
+
+.meal-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: auto;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(232, 135, 159, 0.30);
+  background: rgba(232, 135, 159, 0.10);
+  color: var(--main-pink);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, border-color 0.15s, transform 0.12s;
+}
+.meal-info-btn:hover,
+.meal-info-btn.active {
+  background: rgba(232, 135, 159, 0.22);
+  border-color: rgba(232, 135, 159, 0.55);
+  transform: scale(1.08);
+}
+
+/* ── 툴팁 패널 ── */
+.meal-tooltip {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 200;
+  width: 196px;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid rgba(232, 135, 159, 0.18);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.09),
+    0 1px 6px  rgba(232, 135, 159, 0.10);
+  padding: 14px 16px 13px;
+}
+
+/* 위쪽 꼭짓점 화살표 */
+.meal-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  right: 9px;
+  width: 9px;
+  height: 9px;
+  background: #ffffff;
+  border-left: 1px solid rgba(232, 135, 159, 0.18);
+  border-top:  1px solid rgba(232, 135, 159, 0.18);
+  transform: rotate(45deg);
+  border-radius: 2px 0 0 0;
+}
+
+/* 헤더 */
+.meal-tooltip-title {
+  margin: 0 0 10px;
+  font-size: 9.5px;
+  font-weight: 800;
+  color: var(--main-pink);
+  text-transform: uppercase;
+  letter-spacing: 0.55px;
+}
+
+/* 목록 */
+.meal-tooltip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.meal-tooltip-list li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 0;
+}
+.meal-tooltip-list li + li {
+  border-top: 1px solid #f4f4f4;
+}
+
+.tl-emoji { font-size: 15px; line-height: 1; flex-shrink: 0; }
+.tl-name  { font-size: 12px; font-weight: 700; color: #333; }
+.tl-time  {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 500;
+  color: #aaa;
+  letter-spacing: 0.1px;
+}
+
+/* ════════════════════════════════════════════
+   식품 검색 박스
+   ════════════════════════════════════════════ */
+
+/* ── 입력 행 ── */
+.fsb-wrap { display: flex; flex-direction: column; gap: 0; }
+
+.fsb-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.fsb-input {
+  flex: 1;
+  height: 48px;
+  border: 1.5px solid rgba(232, 135, 159, 0.35);
+  border-radius: 14px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-family: 'Noto Sans KR', sans-serif;
+  color: var(--text-dark);
+  background: #fafafa;
+  outline: none;
+  min-width: 0;
+  transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+}
+.fsb-input:focus {
+  border-color: var(--main-pink);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(232, 135, 159, 0.11);
+}
+.fsb-input::placeholder { color: #ccc; }
+
+.fsb-btn {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  border: none;
+  background: var(--main-pink);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.18s, transform 0.12s, box-shadow 0.18s;
+  box-shadow: 0 2px 10px rgba(232, 135, 159, 0.35);
+}
+.fsb-btn:hover:not(:disabled) {
+  background: #df7090;
+  box-shadow: 0 4px 16px rgba(232, 135, 159, 0.45);
+}
+.fsb-btn:active:not(:disabled) { transform: scale(0.95); }
+.fsb-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
+.fsb-spin {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: fsb-spin 0.7s linear infinite;
+}
+@keyframes fsb-spin { to { transform: rotate(360deg); } }
+
+/* ── 검색 결과 패널 ── */
+.fsb-results {
+  margin-top: 10px;
+  border: 1px solid rgba(232, 135, 159, 0.18);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.07), 0 1px 6px rgba(232, 135, 159, 0.08);
+  overflow: hidden;
+}
+
+.fsb-results-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px 9px;
+  border-bottom: 1px solid #f5f5f5;
+}
+.fsb-results-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.fsb-results-count {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--main-pink);
+}
+.fsb-results-close {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: none;
+  background: #f5f5f5;
+  color: #aaa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.13s, color 0.13s;
+}
+.fsb-results-close:hover { background: #ffe4ec; color: var(--main-pink); }
+
+.fsb-result-list {
+  max-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* 개별 결과 */
+.fsb-result-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-bottom: 1px solid #f7f7f7;
+  transition: background 0.12s;
+}
+.fsb-result-item:last-child { border-bottom: none; }
+.fsb-result-item:hover { background: rgba(232, 135, 159, 0.04); }
+
+/* ── 상품 이미지 썸네일 ── */
+.fsb-ri-thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(135deg, #fdf2f5 0%, #f5f5f5 100%);
+  border: 1px solid rgba(232, 135, 159, 0.14);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 이미지 없을 때 폴백 이모지 */
+.fsb-ri-thumb-fallback {
+  font-size: 22px;
+  line-height: 1;
+  user-select: none;
+  opacity: 0.55;
+}
+
+/* 실제 이미지 (로드 성공 시 폴백 위에 덮임) */
+.fsb-ri-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px;
+  transition: opacity 0.2s ease;
+}
+
+.fsb-ri-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.fsb-ri-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-dark);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fsb-ri-meta {
+  font-size: 11px;
+  color: #bbb;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fsb-ri-brand {
+  color: #a0a0a0;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.fsb-ri-dot { color: #ddd; flex-shrink: 0; }
+.fsb-ri-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.fsb-ri-kcal {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9b59b6;
+  background: rgba(155, 89, 182, 0.08);
+  border: 1px solid rgba(155, 89, 182, 0.20);
+  border-radius: 99px;
+  padding: 1px 7px;
+}
+.fsb-ri-allergy-warn {
+  font-size: 11px;
+  color: #d97706;
+  flex-shrink: 0;
+}
+.fsb-ri-allergy-chip {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(217, 119, 6, 0.25);
+  color: #92400e;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.fsb-ri-no-allergy {
+  font-size: 11px;
+  font-weight: 600;
+  color: #16a34a;
+}
+.fsb-ri-add-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 13px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(232, 135, 159, 0.40);
+  background: rgba(232, 135, 159, 0.07);
+  color: var(--main-pink);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Noto Sans KR', sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.12s;
+  white-space: nowrap;
+}
+.fsb-ri-add-btn:hover {
+  background: rgba(232, 135, 159, 0.14);
+  border-color: var(--main-pink);
+}
+.fsb-ri-add-btn:active { transform: scale(0.96); }
+
+/* 에러 / 결과 없음 */
+.fsb-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #fff8f0;
+  border: 1px solid rgba(234, 88, 12, 0.20);
+  color: #c2410c;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ── 모바일: 썸네일 축소 ── */
+@media (max-width: 400px) {
+  .fsb-ri-thumb {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+  }
+  .fsb-ri-thumb-fallback { font-size: 18px; }
+  .fsb-result-item { gap: 9px; padding: 10px 12px; }
+}
+
+/* 패널 트랜지션 */
+.fsb-panel-enter-active { transition: opacity 0.18s ease, transform 0.18s ease; }
+.fsb-panel-leave-active { transition: opacity 0.13s ease, transform 0.13s ease; }
+.fsb-panel-enter-from   { opacity: 0; transform: translateY(-6px); }
+.fsb-panel-leave-to     { opacity: 0; transform: translateY(-4px); }
+
+/* ════════════════════════════════════════════
+   음식 목록 영역
+   ════════════════════════════════════════════ */
+
+/* food-item-row: 위쪽 정렬로 */
+.food-item-row {
+  align-items: flex-start;
+}
+.food-item-idx   { margin-top: 8px; }
+.btn-remove-food { margin-top: 6px; }
+
+/* 아이템 본문 (이름행 + 알레르기행) */
+.food-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.food-item-name-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+/* 검색 결과로 추가된 음식 이름 (텍스트) */
+.food-item-name-text {
+  flex: 2;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 40px; /* food-input 높이 맞춤 */
+}
+/* 직접 입력 이름 input */
+.food-name-only {
+  flex: 2;
+}
+/* ── 양 스테퍼 ── */
+.food-amount-stepper {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 38px;
+  border: 1.5px solid rgba(232, 135, 159, 0.35);
+  border-radius: 12px;
+  background: #fafafa;
+  overflow: hidden;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.food-amount-stepper:focus-within {
+  border-color: var(--main-pink);
+  box-shadow: 0 0 0 3px rgba(232, 135, 159, 0.11);
+  background: #fff;
+}
+
+.fas-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--main-pink);
+  cursor: pointer;
+  transition: background 0.14s, color 0.14s;
+  padding: 0;
+  flex-shrink: 0;
+}
+.fas-btn:hover:not(:disabled) {
+  background: rgba(232, 135, 159, 0.10);
+}
+.fas-btn:active:not(:disabled) {
+  background: rgba(232, 135, 159, 0.20);
+}
+.fas-btn:disabled {
+  color: #ddd;
+  cursor: not-allowed;
+}
+
+/* 구분선 */
+.fas-minus { border-right: 1px solid rgba(232, 135, 159, 0.20); }
+.fas-plus  { border-left:  1px solid rgba(232, 135, 159, 0.20); }
+
+.fas-input {
+  width: 46px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Noto Sans KR', sans-serif;
+  color: var(--text-dark);
+  outline: none;
+  padding: 0;
+  /* 브라우저 기본 스핀 버튼 제거 */
+  -moz-appearance: textfield;
+}
+.fas-input::-webkit-inner-spin-button,
+.fas-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* 알레르기 태그 행 */
+.food-allergen-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 5px 2px 2px;
+}
+.fa-ok   { font-size: 11px; font-weight: 600; color: #16a34a; }
+.fa-warn { font-size: 12px; color: #d97706; flex-shrink: 0; line-height: 1; }
+.fa-chip {
+  display: inline-block;
+  padding: 1.5px 7px;
+  border-radius: 99px;
+  background: rgba(251, 191, 36, 0.14);
+  border: 1px solid rgba(217, 119, 6, 0.28);
+  color: #92400e;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.fa-kcal { margin-left: auto; font-size: 11px; font-weight: 500; color: #bbb; }
+
+/* 빈 상태 */
+.food-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 16px 22px;
+  color: #ccc;
+}
+.food-empty-text {
+  font-size: 13px;
+  color: #bbb;
+  text-align: center;
+  line-height: 1.7;
+  margin: 0;
+}
+
+/* ── 등장 / 퇴장 트랜지션 ── */
+.tooltip-fade-enter-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.tooltip-fade-leave-active {
+  transition: opacity 0.13s ease, transform 0.13s ease;
+}
+.tooltip-fade-enter-from {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.96);
+}
+.tooltip-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
 }
