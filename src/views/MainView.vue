@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppHeader, { type NavTab } from '@/components/AppHeader.vue'
+import MedicationIntakeSheet from '@/components/MedicationIntakeSheet.vue'
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore'
 import { db } from '@/firebase'
 
@@ -95,7 +96,9 @@ interface CalCell {
   isRed?: boolean
   isBlue?: boolean
   holidayName?: string | null
-  allergyIntensity?: number   // 해당 날짜의 최대 알러지 강도 (1-10), 없으면 undefined
+  allergyIntensity?: number
+  hasDiet?: boolean
+  hasMed?: boolean
 }
 
 const today        = new Date()
@@ -139,7 +142,79 @@ async function fetchAllergyRecords() {
   allergyMonthCount.value = snap.size
 }
 
-watch([currentYear, currentMonth], fetchAllergyRecords, { immediate: true })
+// ── 식단 통계 ──
+const dietMonthCount = ref(0)
+const dietDaySet     = ref<Set<string>>(new Set())
+
+async function fetchDietRecords() {
+  const uid = authStore.user?.uid
+  if (!uid) return
+
+  const year  = currentYear.value
+  const month = currentMonth.value
+
+  const start = Timestamp.fromDate(new Date(year, month, 1, 0, 0, 0))
+  const end   = Timestamp.fromDate(new Date(year, month + 1, 1, 0, 0, 0))
+
+  const q = query(
+    collection(db, 'users', uid, 'dietRecords'),
+    where('date', '>=', start),
+    where('date', '<',  end),
+  )
+
+  const snap = await getDocs(q)
+  const set  = new Set<string>()
+
+  snap.forEach(doc => {
+    const data    = doc.data()
+    const ts      = data.date as Timestamp
+    const d       = ts.toDate()
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    set.add(dateStr)
+  })
+
+  dietDaySet.value     = set
+  dietMonthCount.value = snap.size
+}
+
+// ── 약 복용 통계 ──
+const medDaySet = ref<Set<string>>(new Set())
+
+async function fetchMedRecords() {
+  const uid = authStore.user?.uid
+  if (!uid) return
+
+  const year  = currentYear.value
+  const month = currentMonth.value
+
+  const start = Timestamp.fromDate(new Date(year, month, 1, 0, 0, 0))
+  const end   = Timestamp.fromDate(new Date(year, month + 1, 1, 0, 0, 0))
+
+  const q = query(
+    collection(db, 'users', uid, 'medicationRecords'),
+    where('takenAt', '>=', start),
+    where('takenAt', '<',  end),
+  )
+
+  const snap = await getDocs(q)
+  const set  = new Set<string>()
+
+  snap.forEach(doc => {
+    const data    = doc.data()
+    const ts      = data.takenAt as Timestamp
+    const d       = ts.toDate()
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    set.add(dateStr)
+  })
+
+  medDaySet.value = set
+}
+
+async function fetchMonthData() {
+  await Promise.all([fetchAllergyRecords(), fetchDietRecords(), fetchMedRecords()])
+}
+
+watch([currentYear, currentMonth], fetchMonthData, { immediate: true })
 
 const calTitle = computed(() =>
   `${currentYear.value}년 ${currentMonth.value + 1}월`
@@ -163,9 +238,11 @@ const calendar = computed(() => {
     const isToday     = today.getFullYear() === year && today.getMonth() === month && today.getDate() === d
     const isRed       = dow === 0 || !!holidayName
     const isBlue      = dow === 6 && !holidayName
-    const dateStr        = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    const dateStr          = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
     const allergyIntensity = allergyDayMap.value.get(dateStr)
-    cells.push({ empty: false, date: d, dateStr, isToday, isRed, isBlue, holidayName, allergyIntensity })
+    const hasDiet          = dietDaySet.value.has(dateStr)
+    const hasMed           = medDaySet.value.has(dateStr)
+    cells.push({ empty: false, date: d, dateStr, isToday, isRed, isBlue, holidayName, allergyIntensity, hasDiet, hasMed })
   }
 
   const trailing = totalCells - firstDay - daysInMonth
@@ -181,8 +258,10 @@ function changeMonth(delta: number) {
 }
 
 function goToday() {
-  currentYear.value  = new Date().getFullYear()
-  currentMonth.value = new Date().getMonth()
+  const t = new Date()
+  currentYear.value  = t.getFullYear()
+  currentMonth.value = t.getMonth()
+  selectedDate.value = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
 }
 
 // ── 날짜 선택 ──
@@ -218,7 +297,8 @@ function selectDate(dateStr: string | undefined) {
 }
 
 // ── 기록 추가 다이얼로그 ──
-const showDialog = ref(false)
+const showDialog  = ref(false)
+const showMedSheet = ref(false)
 
 function openDialog()  { showDialog.value = true }
 function closeDialog() { showDialog.value = false }
@@ -226,12 +306,9 @@ function closeDialog() { showDialog.value = false }
 function selectRecord(type: 'allergy' | 'diet' | 'medication') {
   closeDialog()
   const dateQuery = selectedDate.value ? `?date=${selectedDate.value}` : ''
-  if (type === 'diet')     router.push(`/diet-record${dateQuery}`)
-  else if (type === 'allergy') router.push(`/allergy-record${dateQuery}`)
-  else {
-    // TODO: 약 복용 기록 폼 연결
-    console.log('선택한 기록 타입:', type, '| 날짜:', selectedDate.value ?? '오늘')
-  }
+  if (type === 'diet')          router.push(`/diet-record${dateQuery}`)
+  else if (type === 'allergy')  router.push(`/allergy-record${dateQuery}`)
+  else if (type === 'medication') showMedSheet.value = true
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -331,7 +408,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       <div class="stat-card" id="diet-stats">
         <div class="stat-icon-wrap green">🥗</div>
         <div class="stat-body">
-          <div class="stat-num"><span>0</span><span class="stat-unit">회</span></div>
+          <div class="stat-num"><span>{{ dietMonthCount }}</span><span class="stat-unit">회</span></div>
           <div class="stat-label">이번 달 식단 기록</div>
           <div class="stat-trend"></div>
         </div>
@@ -393,12 +470,29 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
                 }"
                 :aria-label="`알러지 강도 ${cell.allergyIntensity}`"
               >{{ cell.allergyIntensity }}</span>
+              <span
+                v-if="cell.hasDiet"
+                class="diet-badge"
+                aria-label="식단 기록 있음"
+              >🥗</span>
+              <span
+                v-if="cell.hasMed"
+                class="med-badge"
+                aria-label="약 복용 기록 있음"
+              >💊</span>
             </div>
           </template>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- ── 약 복용 기록 바텀시트 ── -->
+  <MedicationIntakeSheet
+    :visible="showMedSheet"
+    @close="showMedSheet = false"
+    @saved="showMedSheet = false"
+  />
 
   <!-- ── 기록 추가 다이얼로그 ── -->
   <Teleport to="body">
