@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import AppHeader, { type NavTab } from '@/components/AppHeader.vue'
 import MedicationIntakeSheet from '@/components/MedicationIntakeSheet.vue'
-import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore'
+import { collection, query, where, getDocs, getDoc, doc, Timestamp } from 'firebase/firestore'
 import { db } from '@/firebase'
 
 const router    = useRouter()
@@ -105,6 +105,10 @@ const today        = new Date()
 const currentYear  = ref(today.getFullYear())
 const currentMonth = ref(today.getMonth())
 const activeTab    = ref<'home' | 'records' | 'stats'>('home')
+
+watch(activeTab, (tab) => {
+  if (tab === 'records') router.push('/records')
+})
 
 // ── 알러지 통계 ──
 const allergyMonthCount = ref(0)
@@ -310,6 +314,18 @@ const SYMPTOM_LABEL: Record<string, string> = {
   '300': '복통',    '301': '어지러움',
 }
 
+const BODY_PART_LABEL: Record<string, string> = {
+  head: '머리', face: '얼굴', neck: '목',
+  l_shoulder: '왼쪽 어깨', r_shoulder: '오른쪽 어깨',
+  chest: '가슴', abdomen: '복부', upper_back: '등 위쪽', lower_back: '허리',
+  l_arm: '왼팔', r_arm: '오른팔', l_elbow: '왼쪽 팔꿈치', r_elbow: '오른쪽 팔꿈치',
+  l_hand: '왼손', r_hand: '오른손',
+  l_hip: '왼쪽 엉덩이', r_hip: '오른쪽 엉덩이',
+  l_thigh: '왼쪽 허벅지', r_thigh: '오른쪽 허벅지',
+  l_knee: '왼쪽 무릎', r_knee: '오른쪽 무릎',
+  l_calf: '왼쪽 종아리', r_calf: '오른쪽 종아리',
+}
+
 // 식사 타입 코드 → 한국어 라벨
 const MEAL_TYPE_LABEL: Record<string, string> = {
   breakfast: '아침', lunch: '점심', dinner: '저녁', snack: '간식',
@@ -404,15 +420,29 @@ async function fetchDayRecords(dateStr: string) {
       })
     })
 
-    medSnap.forEach(doc => {
-      const data = doc.data()
-      const t    = (data.takenAt as Timestamp).toDate()
+    await Promise.all(medSnap.docs.map(async (medDoc) => {
+      const data         = medDoc.data()
+      const t            = (data.takenAt as Timestamp).toDate()
+      const medicationId = data.medicationId as string | undefined
+
+      let nickname = ''
+      let type     = ''
+      if (medicationId) {
+        try {
+          const mSnap = await getDoc(doc(db, 'users', uid, 'medications', medicationId))
+          if (mSnap.exists()) {
+            nickname = (mSnap.data().nickname as string) ?? ''
+            type     = (mSnap.data().type     as string) ?? ''
+          }
+        } catch { /* 약 삭제된 경우 무시 */ }
+      }
+
       items.push({
         type: 'medication', sortTime: t, timeStr: tlFmt(t),
-        medicationNickname: (data.medicationNickname as string) ?? '',
-        medicationType:     (data.medicationType     as string) ?? '',
+        medicationNickname: nickname,
+        medicationType:     type,
       })
-    })
+    }))
 
     items.sort((a, b) => a.sortTime.getTime() - b.sortTime.getTime())
     timelineItems.value = items
@@ -738,7 +768,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
                         {{ SYMPTOM_LABEL[s] ?? s }}
                       </span>
                       <span v-for="b in item.bodyParts" :key="b" class="tl-chip tl-chip-body">
-                        {{ b }}
+                        {{ BODY_PART_LABEL[b] ?? b }}
                       </span>
                     </div>
                     <p v-if="item.memo" class="tl-memo">{{ item.memo }}</p>
@@ -789,16 +819,17 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
               </div>
             </div>
 
-            <!-- 기록 추가 버튼 -->
+            <!-- 전체 기록 보기 버튼 -->
             <button
-              class="tl-add-btn"
+              class="tl-goto-records-btn"
               type="button"
-              @click="showTimeline = false; openDialog()"
+              @click="showTimeline = false; router.push(`/records?date=${selectedDate}`)"
             >
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                <path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <rect x="1" y="3" width="14" height="12" rx="2.5" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M5 1v4M11 1v4M1 7h14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
               </svg>
-              이 날짜에 기록 추가
+              이 날의 기록 전체 보기
             </button>
           </div>
 
