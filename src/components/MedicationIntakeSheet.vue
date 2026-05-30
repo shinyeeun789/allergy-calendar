@@ -120,11 +120,11 @@ async function handleSave() {
     const uid = authStore.user?.uid
     if (!uid) throw new Error('로그인 필요')
 
-    // 복용 시각 — 오늘 날짜 + 입력 시각
-    const now = new Date()
+    // 복용 시각 — 알러지 연동 시 해당 날짜 기준, 아니면 오늘
+    const base = props.allergyDate ?? new Date()
     const [h, m] = takenTime.value.split(':').map(Number)
     const takenAt = Timestamp.fromDate(
-      new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0)
+      new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m, 0)
     )
 
     // 연동 알러지 시각
@@ -138,13 +138,11 @@ async function handleSave() {
       selectedMeds.map(med =>
         addDoc(collection(db, 'users', uid, 'medicationRecords'), {
           uid,
-          medicationId:       med.id,
-          medicationNickname: med.nickname,
-          medicationType:     med.type,
+          medicationId:    med.id,
           takenAt,
-          allergyRecordId:    props.allergyRecordId ?? null,
+          allergyRecordId: props.allergyRecordId ?? null,
           allergyAt,
-          createdAt:          serverTimestamp(),
+          createdAt:       serverTimestamp(),
         })
       )
     )
