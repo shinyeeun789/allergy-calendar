@@ -267,6 +267,166 @@ function goToday() {
 // ── 날짜 선택 ──
 const selectedDate = ref<string | null>(null)
 
+// ── 날짜별 타임라인 ──────────────────────────────────────────
+type TLType = 'allergy' | 'diet' | 'medication'
+
+interface AllergenDef {
+  emoji:   string
+  name_ko: string
+}
+
+interface FoodEntry {
+  name:       string
+  amount:     number
+  allergens?: string[]   // allergen 코드 배열 (allergies 컬렉션 문서 ID)
+}
+
+interface TimelineItem {
+  type:    TLType
+  sortTime: Date
+  timeStr:  string
+  // allergy
+  intensity?:  number
+  symptoms?:   string[]
+  bodyParts?:  string[]
+  // diet
+  mealType?:   string
+  foodItems?:  FoodEntry[]
+  // medication
+  medicationNickname?: string
+  medicationType?:     string
+  // common
+  memo?: string
+}
+
+const MED_EMOJI: Record<string, string> = {
+  PILL: '💊', OINTMENT: '🧴', NASAL_SPRAY: '👃', EYE_DROP: '👁️', SYRUP: '🥤',
+}
+
+// 알러지 증상 코드 → 한국어 라벨
+const SYMPTOM_LABEL: Record<string, string> = {
+  '100': '가려움',  '101': '두드러기', '102': '붉어짐',    '103': '열감',    '104': '붓기',
+  '200': '콧물',    '201': '재채기',   '202': '코막힘',    '203': '눈 가려움', '204': '기침',
+  '300': '복통',    '301': '어지러움',
+}
+
+// 식사 타입 코드 → 한국어 라벨
+const MEAL_TYPE_LABEL: Record<string, string> = {
+  breakfast: '아침', lunch: '점심', dinner: '저녁', snack: '간식',
+}
+const MEAL_TYPE_EMOJI: Record<string, string> = {
+  breakfast: '🌅', lunch: '☀️', dinner: '🌙', snack: '🍪',
+}
+
+// allergies 컬렉션 정의 (코드 → { emoji, name_ko })
+const allergenMap = ref<Map<string, AllergenDef>>(new Map())
+
+async function fetchAllergenDefs() {
+  if (allergenMap.value.size > 0) return  // 이미 로드됨
+  try {
+    const snap = await getDocs(collection(db, 'allergies'))
+    const map  = new Map<string, AllergenDef>()
+    snap.forEach(doc => {
+      const d = doc.data()
+      map.set(doc.id, { emoji: d.emoji as string, name_ko: d.name_ko as string })
+    })
+    allergenMap.value = map
+  } catch (e) {
+    console.error('[MainView] fetchAllergenDefs 오류:', e)
+  }
+}
+
+const showTimeline    = ref(false)
+const timelineLoading = ref(false)
+const timelineItems   = ref<TimelineItem[]>([])
+
+function tlFmt(d: Date) {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function tlIntensityClass(intensity?: number) {
+  if (!intensity) return ''
+  if (intensity <= 3) return 'tl-intensity-mild'
+  if (intensity <= 6) return 'tl-intensity-moderate'
+  return 'tl-intensity-severe'
+}
+
+async function fetchDayRecords(dateStr: string) {
+  const uid = authStore.user?.uid
+  if (!uid) return
+
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const start = Timestamp.fromDate(new Date(y, m - 1, d,     0, 0, 0))
+  const end   = Timestamp.fromDate(new Date(y, m - 1, d + 1, 0, 0, 0))
+
+  timelineLoading.value = true
+  try {
+    const [, allergySnap, dietSnap, medSnap] = await Promise.all([
+      fetchAllergenDefs(),
+      getDocs(query(collection(db, 'users', uid, 'allergyRecords'),
+        where('date', '>=', start), where('date', '<', end))),
+      getDocs(query(collection(db, 'users', uid, 'dietRecords'),
+        where('date', '>=', start), where('date', '<', end))),
+      getDocs(query(collection(db, 'users', uid, 'medicationRecords'),
+        where('takenAt', '>=', start), where('takenAt', '<', end))),
+    ])
+
+    const items: TimelineItem[] = []
+
+    allergySnap.forEach(doc => {
+      const data = doc.data()
+      const t    = (data.date as Timestamp).toDate()
+      items.push({
+        type: 'allergy', sortTime: t, timeStr: tlFmt(t),
+        intensity: data.intensity as number,
+        symptoms:  (data.symptoms  as string[]) ?? [],
+        bodyParts: (data.bodyParts as string[]) ?? [],
+        memo:      (data.memo as string) ?? '',
+      })
+    })
+
+    dietSnap.forEach(doc => {
+      const data     = doc.data()
+      const t        = (data.date as Timestamp).toDate()
+      const foodArr  = (data.foods as any[]) ?? []
+      const foodItems: FoodEntry[] = foodArr
+        .filter((f: any) => f.name)
+        .map((f: any) => ({
+          name:      f.name as string,
+          amount:    (f.amount as number) ?? 1,
+          allergens: (f.allergens as string[] | null) ?? [],
+        }))
+      items.push({
+        type: 'diet', sortTime: t, timeStr: tlFmt(t),
+        mealType:  (data.mealType as string) ?? '',
+        foodItems,
+        memo:      (data.memo as string) ?? '',
+      })
+    })
+
+    medSnap.forEach(doc => {
+      const data = doc.data()
+      const t    = (data.takenAt as Timestamp).toDate()
+      items.push({
+        type: 'medication', sortTime: t, timeStr: tlFmt(t),
+        medicationNickname: (data.medicationNickname as string) ?? '',
+        medicationType:     (data.medicationType     as string) ?? '',
+      })
+    })
+
+    items.sort((a, b) => a.sortTime.getTime() - b.sortTime.getTime())
+    timelineItems.value = items
+
+    if (items.length > 0) showTimeline.value = true
+    else                   showTimeline.value = false
+  } catch (e) {
+    console.error('[MainView] fetchDayRecords 오류:', e)
+    showTimeline.value = false
+  } finally {
+    timelineLoading.value = false
+  }
+}
+
 // 선택된 날짜의 표시용 라벨 (예: "5월 8일 목요일")
 const selectedDateLabel = computed(() => {
   const src = selectedDate.value
@@ -290,10 +450,19 @@ const selectedDateFull = computed(() => {
   return `${y}년 ${m}월 ${d}일 ${DAY_KO[dow]}요일`
 })
 
-function selectDate(dateStr: string | undefined) {
+async function selectDate(dateStr: string | undefined) {
   if (!dateStr) return
-  // 같은 날짜 재클릭 시 선택 해제
-  selectedDate.value = selectedDate.value === dateStr ? null : dateStr
+
+  // 이미 선택된 날짜를 다시 클릭하면 기록이 있을 때만 하루기록 팝업 노출
+  if (selectedDate.value === dateStr) {
+    timelineItems.value = []
+    await fetchDayRecords(dateStr)
+    // fetchDayRecords 내부에서 기록이 있을 때만 showTimeline = true 처리
+    return
+  }
+
+  // 처음 클릭: 날짜만 선택
+  selectedDate.value = dateStr
 }
 
 // ── 기록 추가 다이얼로그 ──
@@ -312,7 +481,9 @@ function selectRecord(type: 'allergy' | 'diet' | 'medication') {
 }
 
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && showDialog.value) closeDialog()
+  if (e.key !== 'Escape') return
+  if (showDialog.value)   closeDialog()
+  if (showTimeline.value) showTimeline.value = false
 }
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
@@ -493,6 +664,148 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
     @close="showMedSheet = false"
     @saved="showMedSheet = false"
   />
+
+  <!-- ── 날짜별 타임라인 시트 ── -->
+  <Teleport to="body">
+    <Transition name="dialog">
+      <div
+        v-if="showTimeline"
+        class="rd-backdrop"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="`${selectedDateFull} 기록`"
+        @click.self="showTimeline = false"
+      >
+        <div class="rd-sheet tl-sheet">
+          <div class="rd-handle"></div>
+
+          <!-- 헤더 -->
+          <div class="rd-header">
+            <div class="rd-header-text">
+              <p class="rd-eyebrow">{{ selectedDateFull }}</p>
+              <h3 class="rd-title">하루 기록</h3>
+            </div>
+            <button class="rd-close" type="button" aria-label="닫기" @click="showTimeline = false">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- 로딩 -->
+          <div v-if="timelineLoading" class="tl-loading">
+            <span class="tl-loading-spinner"></span>
+            <span>기록 불러오는 중…</span>
+          </div>
+
+          <!-- 타임라인 본문 -->
+          <div v-else class="tl-body">
+            <div class="tl-list">
+              <div
+                v-for="(item, i) in timelineItems"
+                :key="i"
+                class="tl-item"
+              >
+                <!-- 시각 -->
+                <div class="tl-time">{{ item.timeStr }}</div>
+
+                <!-- 선 + 점 -->
+                <div class="tl-connector">
+                  <div v-if="i > 0" class="tl-line-pre"></div>
+                  <div
+                    class="tl-dot"
+                    :class="[`tl-dot-${item.type}`, { 'tl-dot-first': i === 0 }]"
+                  ></div>
+                  <div v-if="i < timelineItems.length - 1" class="tl-line-post"></div>
+                </div>
+
+                <!-- 카드 -->
+                <div class="tl-card" :class="`tl-card-${item.type}`">
+
+                  <!-- 알러지 -->
+                  <template v-if="item.type === 'allergy'">
+                    <div class="tl-card-header">
+                      <span class="tl-icon">🤧</span>
+                      <span class="tl-card-title">알러지 증상</span>
+                      <span
+                        v-if="item.intensity"
+                        class="tl-badge"
+                        :class="tlIntensityClass(item.intensity)"
+                      >강도 {{ item.intensity }}</span>
+                    </div>
+                    <div v-if="item.symptoms?.length || item.bodyParts?.length" class="tl-chips">
+                      <span v-for="s in item.symptoms"  :key="s" class="tl-chip tl-chip-symptom">
+                        {{ SYMPTOM_LABEL[s] ?? s }}
+                      </span>
+                      <span v-for="b in item.bodyParts" :key="b" class="tl-chip tl-chip-body">
+                        {{ b }}
+                      </span>
+                    </div>
+                    <p v-if="item.memo" class="tl-memo">{{ item.memo }}</p>
+                  </template>
+
+                  <!-- 식단 -->
+                  <template v-else-if="item.type === 'diet'">
+                    <div class="tl-card-header">
+                      <span class="tl-icon">{{ MEAL_TYPE_EMOJI[item.mealType ?? ''] ?? '🥗' }}</span>
+                      <span class="tl-card-title">식단 기록</span>
+                      <span v-if="item.mealType" class="tl-badge tl-badge-diet">
+                        {{ MEAL_TYPE_LABEL[item.mealType] ?? item.mealType }}
+                      </span>
+                    </div>
+                    <div v-if="item.foodItems?.length" class="tl-food-list">
+                      <div
+                        v-for="(food, fi) in item.foodItems"
+                        :key="fi"
+                        class="tl-food-item"
+                      >
+                        <div class="tl-food-name-row">
+                          <span class="tl-food-name">{{ food.name }}</span>
+                          <span class="tl-food-amount">× {{ food.amount }}</span>
+                        </div>
+                        <div v-if="food.allergens?.length" class="tl-allergen-chips">
+                          <template v-for="code in food.allergens" :key="code">
+                            <span
+                              v-if="allergenMap.get(code)"
+                              class="tl-allergen-chip"
+                            >{{ allergenMap.get(code)!.emoji }} {{ allergenMap.get(code)!.name_ko }}</span>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+                    <p v-if="item.memo" class="tl-memo">{{ item.memo }}</p>
+                  </template>
+
+                  <!-- 약 복용 -->
+                  <template v-else-if="item.type === 'medication'">
+                    <div class="tl-card-header">
+                      <span class="tl-icon">{{ MED_EMOJI[item.medicationType ?? ''] ?? '💊' }}</span>
+                      <span class="tl-card-title">약 복용</span>
+                    </div>
+                    <p class="tl-med-name">{{ item.medicationNickname }}</p>
+                  </template>
+
+                </div>
+              </div>
+            </div>
+
+            <!-- 기록 추가 버튼 -->
+            <button
+              class="tl-add-btn"
+              type="button"
+              @click="showTimeline = false; openDialog()"
+            >
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+              </svg>
+              이 날짜에 기록 추가
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 
   <!-- ── 기록 추가 다이얼로그 ── -->
   <Teleport to="body">

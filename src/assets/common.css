@@ -1022,6 +1022,36 @@ nav {
 }
 .nav-tab:hover:not(.active) { color: #666; }
 
+/* ── 왼쪽 그룹: 로고 + 서브페이지 타이틀 ── */
+.nav-left {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+    min-width: 0;
+}
+
+/* 로고↔타이틀 구분선 */
+.nav-title-sep {
+    display: inline-block;
+    width: 1px;
+    height: 15px;
+    background: rgba(232, 135, 159, 0.35);
+    border-radius: 1px;
+    flex-shrink: 0;
+    margin: 0 14px;
+}
+
+/* 페이지 제목 */
+.nav-page-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #555;
+    letter-spacing: -0.2px;
+    white-space: nowrap;
+    font-family: 'Noto Sans KR', sans-serif;
+}
+
 /* 우측 유저 영역 */
 .nav-user {
     display: flex;
@@ -1030,15 +1060,34 @@ nav {
     flex-shrink: 0;
 }
 
+/* ── 유저 칩 드롭다운 래퍼 ── */
+.nav-user-menu-wrap {
+    position: relative;
+}
+
+/* ── 유저 칩 (드롭다운 트리거) ── */
 .user-chip {
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 4px 14px 4px 4px;
+    gap: 8px;
+    padding: 4px 10px 4px 4px;
     background: #fff;
-    border: 1.5px solid rgba(232,135,159,0.22);
+    border: 1.5px solid rgba(232,135,159,0.25);
     border-radius: 100px;
     box-shadow: 0 1px 6px rgba(232,135,159,0.10);
+    cursor: pointer;
+    font-family: 'Noto Sans KR', sans-serif;
+    transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+}
+.user-chip:hover {
+    border-color: rgba(232,135,159,0.6);
+    box-shadow: 0 2px 12px rgba(232,135,159,0.18);
+    background: #fff8fa;
+}
+.user-chip.open {
+    border-color: var(--main-pink);
+    box-shadow: 0 2px 14px rgba(232,135,159,0.24);
+    background: #fff8fa;
 }
 
 .user-avatar {
@@ -1071,22 +1120,137 @@ nav {
     white-space: nowrap;
 }
 
-.btn-logout-sm {
-    background: none;
-    border: 1.5px solid #ebebeb;
-    border-radius: 9px;
-    padding: 7px 14px;
-    font-size: 12.5px;
-    font-weight: 600;
-    color: #bbb;
-    cursor: pointer;
-    font-family: 'Noto Sans KR', sans-serif;
-    transition: border-color 0.18s, color 0.18s, background 0.18s;
+/* 쉐브론 아이콘 */
+.user-chip-chevron {
+    color: #aaa;
+    flex-shrink: 0;
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), color 0.18s;
 }
-.btn-logout-sm:hover {
-    border-color: #ddd;
-    color: #777;
-    background: #f9f9f9;
+.user-chip:hover .user-chip-chevron,
+.user-chip.open .user-chip-chevron {
+    color: var(--main-pink);
+}
+.user-chip-chevron.rotated {
+    transform: rotate(180deg);
+}
+
+/* ── 드롭다운 패널 ── */
+.nav-user-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    min-width: 200px;
+    background: #fff;
+    border: 1.5px solid rgba(232,135,159,0.18);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(100, 30, 50, 0.12), 0 2px 8px rgba(232,135,159,0.10);
+    overflow: hidden;
+    z-index: 200;
+}
+
+/* 패널 상단 유저 정보 */
+.nav-user-menu-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px 12px;
+}
+.nav-user-menu-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #F4A7BB, #E8879F);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+.nav-user-menu-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.nav-user-menu-name {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #222;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.nav-user-menu-email {
+    font-size: 11.5px;
+    font-weight: 400;
+    color: #aaa;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+}
+
+/* 구분선 */
+.nav-user-menu-divider {
+    height: 1px;
+    background: rgba(232,135,159,0.12);
+    margin: 0;
+}
+
+/* 메뉴 아이템 */
+.nav-user-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 12px 16px;
+    background: none;
+    border: none;
+    font-family: 'Noto Sans KR', sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #333;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, color 0.15s;
+}
+.nav-user-menu-item:hover {
+    background: rgba(232,135,159,0.08);
+    color: var(--main-pink);
+}
+.nav-user-menu-item svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+    transition: opacity 0.15s;
+}
+.nav-user-menu-item:hover svg {
+    opacity: 1;
+}
+.nav-user-menu-item.logout {
+    color: #999;
+}
+.nav-user-menu-item.logout:hover {
+    background: rgba(229, 62, 62, 0.06);
+    color: #e53e3e;
+}
+
+/* 드롭다운 트랜지션 */
+.user-menu-enter-active {
+    transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.user-menu-leave-active {
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.user-menu-enter-from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+}
+.user-menu-leave-to {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
 }
 
 /* ── Page greeting ── */
@@ -1343,12 +1507,13 @@ nav {
     position: relative;
     overflow: hidden;
 }
-.cal-cell:hover:not(.empty) {
-    background: rgba(232, 135, 159, 0.07);
+@media (hover: hover) and (pointer: fine) {
+    .cal-cell:hover:not(.empty):not(.selected) {
+        background: rgba(232, 135, 159, 0.07);
+    }
 }
 .cal-cell.selected {
-    /*background: rgba(232, 135, 159, 0.10);*/
-    box-shadow: inset 0 0 0 1.5px rgba(232, 135, 159, 0.45);
+    box-shadow: inset 0 0 0 2px var(--main-pink);
 }
 .cal-cell.empty {
     cursor: default;
@@ -1407,9 +1572,7 @@ nav {
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
-    .user-chip    { display: none; }
     .logo-wordmark { display: none; }
-    .btn-logout-sm { display: none; }
 
     #allergy-stats { display: none; }
     #diet-stats { display: none; }
@@ -1426,6 +1589,11 @@ nav {
 @media (max-width: 640px) {
     .nav-inner { height: 60px; }
     .user-chip-name { display: none; }
+    .user-chip-chevron { display: none; }
+    .user-chip { padding: 4px; }
+    .nav-user-menu { min-width: 180px; }
+    .nav-page-title { font-size: 13px; }
+    .nav-title-sep { margin: 0 10px; }
     .page-body { padding: 24px 16px 48px; }
     .page-greeting { flex-direction: column; align-items: flex-start; gap: 16px; }
     .stats-row { grid-template-columns: 1fr; }
@@ -1433,8 +1601,8 @@ nav {
     .cal-header { padding: 20px 16px 16px; }
     .cal-day-headers, .cal-grid { padding: 0 4px; }
     .cal-num { width: 26px; height: 26px; font-size: 12px; margin-bottom: 3px; }
-    .cal-cell { padding: 8px 3px 6px; }
-    .cal-grid { height: 500px; padding: 0 4px 8px; }
+    .cal-cell { padding: 8px 3px 6px; overflow: visible; }
+    .cal-grid { height: 520px; padding: 0 4px 8px; }
     .cal-title { font-size: 17px; }
     .greeting-title { font-size: 22px; }
 
@@ -3611,25 +3779,27 @@ nav {
    (border 대신 셀 배경색으로 표현)
    ════════════════════════════════ */
 
-.has-allergy-mild:not(.selected) {
+.has-allergy-mild {
   background: rgba(187, 247, 208, 0.32);
 }
-.has-allergy-moderate:not(.selected) {
+.has-allergy-moderate {
   background: rgba(253, 230, 138, 0.38);
 }
-.has-allergy-severe:not(.selected) {
+.has-allergy-severe {
   background: rgba(251, 207, 232, 0.38);
 }
 
 /* tinted 셀의 hover — 브랜드 핑크 hover보다 해당 색 우선 */
-.has-allergy-mild:not(.selected):hover {
-  background: rgba(134, 239, 172, 0.40);
-}
-.has-allergy-moderate:not(.selected):hover {
-  background: rgba(252, 211,  77, 0.40);
-}
-.has-allergy-severe:not(.selected):hover {
-  background: rgba(249, 168, 212, 0.45);
+@media (hover: hover) and (pointer: fine) {
+  .has-allergy-mild:not(.selected):hover {
+    background: rgba(134, 239, 172, 0.40);
+  }
+  .has-allergy-moderate:not(.selected):hover {
+    background: rgba(252, 211,  77, 0.40);
+  }
+  .has-allergy-severe:not(.selected):hover {
+    background: rgba(249, 168, 212, 0.45);
+  }
 }
 
 /* ════════════════════════════════
@@ -3646,89 +3816,1312 @@ nav {
 }
 
 /* ════════════════════════════════
-   알러지 뱃지 — 파스텔 chip
+   캘린더 뱃지 공통
    ════════════════════════════════ */
 
-.allergy-badge {
+.allergy-badge,
+.diet-badge,
+.med-badge {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 2px 7px 2px 5px;
-  border-radius: 99px;
-  font-size: 9.5px;
+  justify-content: center;
+  height: 16px;
+  border-radius: 6px;
+  font-size: 9px;
   font-weight: 700;
   line-height: 1;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.01em;
   user-select: none;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
-}
-
-.cal-cell:hover .allergy-badge {
-  transform: translateY(-1px);
-}
-
-/* 공통 dot */
-.allergy-badge::before {
-  content: '';
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
   flex-shrink: 0;
+  transition: transform 0.15s ease;
 }
 
-/* ── 경미 (1–3) ── */
+.cal-cell:hover .allergy-badge,
+.cal-cell:hover .diet-badge,
+.cal-cell:hover .med-badge {
+  transform: translateY(-1.5px);
+}
+
+/* ── 알러지 뱃지 ── */
+.allergy-badge {
+  min-width: 25px;
+  padding: 0 5px;
+}
 .badge-mild {
-  background: rgba(255, 255, 255, 0.80);
-  color: #166534;
-  border: 1px solid rgba(74, 222, 128, 0.50);
-  box-shadow: 0 1px 3px rgba(34, 197, 94, 0.15);
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid rgba(34, 197, 94, 0.38);
 }
-.badge-mild::before {
-  background: #22c55e;
-}
-
-/* ── 보통 (4–6) ── */
 .badge-moderate {
-  background: rgba(255, 255, 255, 0.80);
-  color: #92400e;
-  border: 1px solid rgba(251, 191, 36, 0.55);
-  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.18);
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.42);
 }
-.badge-moderate::before {
-  background: #f59e0b;
-}
-
-/* ── 심각 (7–10) — 브랜드 로즈 + ping ── */
 .badge-severe {
-  background: rgba(255, 255, 255, 0.85);
-  color: #9d174d;
-  border: 1px solid rgba(232, 135, 159, 0.55);
-  box-shadow: 0 1px 4px rgba(232, 135, 159, 0.22);
-  animation: badge-ping 2.6s ease-in-out infinite;
+  background: #fdf2f8;
+  color: #be185d;
+  border: 1px solid rgba(232, 135, 159, 0.52);
+  animation: badge-severe-glow 2.8s ease-in-out infinite;
 }
-.badge-severe::before {
-  background: var(--main-pink);
+@keyframes badge-severe-glow {
+  0%, 100% { box-shadow: none; }
+  50%      { box-shadow: 0 0 0 2.5px rgba(232, 135, 159, 0.18); }
 }
 
-@keyframes badge-ping {
-  0%   { box-shadow: 0 1px 4px rgba(232, 135, 159, 0.22), 0 0 0 0   rgba(232, 135, 159, 0.35); }
-  55%  { box-shadow: 0 1px 4px rgba(232, 135, 159, 0.22), 0 0 0 4px rgba(232, 135, 159, 0.08); }
-  100% { box-shadow: 0 1px 4px rgba(232, 135, 159, 0.22), 0 0 0 0   rgba(232, 135, 159, 0.00); }
+/* ── 식단 뱃지 ── */
+.diet-badge {
+  padding: 0 3px;
+  font-size: 11px;
+  background: #f0fdfa;
+  border: 1px solid rgba(20, 184, 166, 0.42);
+}
+
+/* ── 약 복용 뱃지 ── */
+.med-badge {
+  padding: 0 3px;
+  font-size: 11px;
+  background: #f5f3ff;
+  border: 1px solid rgba(139, 92, 246, 0.38);
 }
 
 /* ── 모바일 ── */
 @media (max-width: 640px) {
+  /* cal-dots: 식단·약 뱃지만 하단 유지 */
   .cal-dots {
-    min-height: 13px;
-    padding-top: 2px;
-  }
-  .allergy-badge {
-    font-size: 8px;
-    padding: 1.5px 5px 1.5px 4px;
+    padding-top: 3px;
     gap: 2px;
   }
-  .allergy-badge::before {
-    width: 4px;
-    height: 4px;
+
+  /* 알러지 뱃지: 모바일에서 숨김 */
+  .allergy-badge {
+    display: none;
   }
+
+  /* 식단·약 뱃지 */
+  .diet-badge,
+  .med-badge {
+    height: 14px;
+    border-radius: 4px;
+    font-size: 9px;
+    padding: 0 1px;
+  }
+}
+
+/* ════════════════════════════════════════════
+   ── Medication Register Page ──
+   ════════════════════════════════════════════ */
+
+/* ── 페이지 래퍼 ── */
+.med-page { max-width: 680px; }
+
+/* ── 히어로 헤더 ── */
+.med-hero {
+  position: relative;
+  background: #fff;
+  border-radius: 22px;
+  border: 1.5px solid rgba(232, 135, 159, 0.18);
+  border-top: 3px solid var(--main-pink);
+  padding: 26px 24px 24px;
+  margin-bottom: 22px;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(232, 135, 159, 0.09);
+}
+
+.med-hero-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.med-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--main-pink);
+  background: linear-gradient(135deg, #FEF0F4 0%, #fff5f8 100%);
+  border: 1px solid rgba(232, 135, 159, 0.28);
+  padding: 4px 12px;
+  border-radius: 100px;
+  width: fit-content;
+}
+
+.med-hero-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 900;
+  color: var(--text-dark);
+  letter-spacing: -0.8px;
+  line-height: 1.2;
+}
+
+.med-hero-sub {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #aaa;
+  line-height: 1.5;
+}
+
+.med-hero-deco {
+  position: absolute;
+  bottom: -40px;
+  left: -30px;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(232,135,159,0.10) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ── 폼 ── */
+.med-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── 섹션 에러 테두리 ── */
+.diet-section.med-section-error {
+  border-color: rgba(229, 62, 62, 0.40);
+  box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.07);
+}
+
+/* ── 필수/선택 뱃지 ── */
+.med-required-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--main-pink);
+  background: rgba(232, 135, 159, 0.1);
+  padding: 2px 8px;
+  border-radius: 100px;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: auto;
+}
+
+/* ── 필드 에러 텍스트 ── */
+.med-field-error {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--error-red);
+  margin: 6px 0 0;
+  padding-left: 2px;
+}
+
+/* ════════════════════════════════════════════
+   약 종류 선택 그리드
+   ════════════════════════════════════════════ */
+
+/* 데스크톱: 5열 */
+.med-type-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+/* 모바일: 3+2 센터 정렬 (6-column 트릭) */
+@media (max-width: 540px) {
+  .med-type-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+  .med-type-btn:nth-child(1) { grid-column: 1 / 3; }
+  .med-type-btn:nth-child(2) { grid-column: 3 / 5; }
+  .med-type-btn:nth-child(3) { grid-column: 5 / 7; }
+  .med-type-btn:nth-child(4) { grid-column: 2 / 4; }
+  .med-type-btn:nth-child(5) { grid-column: 4 / 6; }
+}
+
+.med-type-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 8px 15px;
+  border-radius: 16px;
+  border: 1.5px solid #efefef;
+  background: #fafafa;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s, transform 0.15s;
+  font-family: 'Noto Sans KR', sans-serif;
+  min-height: 90px;
+}
+.med-type-btn:hover:not(.active) {
+  border-color: #e0e0e0;
+  background: #fff;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.07);
+  transform: translateY(-1px);
+}
+.med-type-btn.active {
+  background: linear-gradient(135deg, #FEF0F4 0%, #FFF5F8 100%);
+  border-color: var(--main-pink);
+  box-shadow: 0 4px 18px rgba(232, 135, 159, 0.25);
+}
+.med-type-btn:active { transform: scale(0.97); }
+
+.med-type-emoji {
+  font-size: 28px;
+  line-height: 1;
+  transition: transform 0.2s;
+}
+.med-type-btn.active .med-type-emoji { transform: scale(1.12); }
+
+.med-type-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #999;
+  letter-spacing: -0.1px;
+  text-align: center;
+  line-height: 1.3;
+  transition: color 0.2s;
+  word-break: keep-all;
+}
+.med-type-btn.active .med-type-label { color: var(--main-pink); }
+
+/* 선택 시 체크 뱃지 */
+.med-type-check {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--main-pink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: check-pop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ════════════════════════════════════════════
+   나만의 약 닉네임 입력
+   ════════════════════════════════════════════ */
+
+.med-nickname-input {
+  width: 100%;
+  height: 52px;
+  border: 1.5px solid #efefef;
+  border-radius: 12px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-family: 'Noto Sans KR', sans-serif;
+  color: var(--text-dark);
+  background: #fafafa;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+}
+.med-nickname-input:focus {
+  border-color: var(--main-pink);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(232, 135, 159, 0.11);
+}
+.med-nickname-input.error {
+  border-color: rgba(229, 62, 62, 0.50);
+}
+.med-nickname-input::placeholder { color: #ccc; }
+
+.med-nickname-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+  min-height: 20px;
+}
+
+.med-char-count {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--main-pink);
+  margin-left: auto;
+}
+.med-char-max {
+  font-weight: 500;
+  color: #ccc;
+}
+
+/* ════════════════════════════════════════════
+   제출 에러 메시지
+   ════════════════════════════════════════════ */
+
+.med-submit-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff5f5;
+  border: 1px solid rgba(229, 62, 62, 0.25);
+  border-radius: 12px;
+  color: var(--error-red);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 12px 16px;
+}
+.med-submit-error-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--error-red);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ── 반응형 ── */
+@media (max-width: 540px) {
+  .med-hero          { padding: 20px 18px 20px; border-radius: 18px; }
+  .med-hero-title    { font-size: 22px; }
+  .med-type-btn      { min-height: 80px; padding: 14px 6px 12px; border-radius: 14px; }
+  .med-type-emoji    { font-size: 24px; }
+  .med-type-label    { font-size: 10.5px; }
+}
+
+/* ── 로딩 스켈레톤 (등록 수정 폼) ── */
+.med-skeleton-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.med-skeleton-block {
+  height: 160px;
+  border-radius: 18px;
+  background: linear-gradient(90deg, #f5f5f5 25%, #ebebeb 50%, #f5f5f5 75%);
+  background-size: 200% 100%;
+  animation: med-skeleton-shimmer 1.4s infinite;
+}
+.med-skeleton-block.tall  { height: 200px; }
+.med-skeleton-block.short { height: 80px; }
+@keyframes med-skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+
+
+/* ════════════════════════════════════════════
+   ── Medication Intake Sheet ──
+   ════════════════════════════════════════════ */
+
+/* 시트 크기 확장 (약 목록이 많을 수 있어 max-height 조정) */
+.mis-sheet {
+  max-height: 86dvh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 바디 영역 ── */
+.mis-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-top: 4px;
+}
+
+/* ── 로딩 ── */
+.mis-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 0;
+  color: #bbb;
+  font-size: 14px;
+}
+.mis-loading-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(232, 135, 159, 0.25);
+  border-top-color: var(--main-pink);
+  border-radius: 50%;
+  animation: diet-spin 0.7s linear infinite;
+}
+
+/* ── 빈 상태 ── */
+.mis-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 36px 0 24px;
+  text-align: center;
+}
+.mis-empty-icon { font-size: 36px; line-height: 1; }
+.mis-empty-text {
+  font-size: 14px;
+  color: #888;
+  line-height: 1.6;
+  margin: 0;
+}
+.mis-empty-btn {
+  margin-top: 4px;
+  padding: 9px 20px;
+  background: none;
+  border: 1.5px solid rgba(232,135,159,0.40);
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--main-pink);
+  cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+  transition: background 0.16s, border-color 0.16s;
+}
+.mis-empty-btn:hover {
+  background: rgba(232,135,159,0.08);
+  border-color: var(--main-pink);
+}
+
+/* ── 약 버튼 목록 ── */
+.mis-med-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mis-med-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  background: #f9f9f9;
+  border: 1.5px solid #ebebeb;
+  border-radius: 100px;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #444;
+  cursor: pointer;
+  transition: background 0.16s, border-color 0.16s, color 0.16s, box-shadow 0.16s;
+  white-space: nowrap;
+}
+.mis-med-btn:hover {
+  background: #fff;
+  border-color: rgba(232,135,159,0.50);
+  color: #222;
+}
+.mis-med-btn.selected {
+  background: rgba(232,135,159,0.10);
+  border-color: var(--main-pink);
+  color: var(--dark-pink);
+  box-shadow: 0 2px 8px rgba(232,135,159,0.14);
+}
+.mis-med-emoji { font-size: 16px; line-height: 1; }
+.mis-med-name  { font-size: 13.5px; }
+.mis-med-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--main-pink);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+/* ── 복용 시각 섹션 ── */
+.mis-time-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mis-time-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #888;
+  margin: 0;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+/* 알러지 연동 배너 */
+.mis-link-banner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  background: rgba(232,135,159,0.07);
+  border: 1px solid rgba(232,135,159,0.20);
+  border-radius: 10px;
+  font-size: 13px;
+  color: #888;
+  line-height: 1.4;
+}
+.mis-link-banner svg { color: var(--main-pink); flex-shrink: 0; }
+.mis-link-banner strong { color: var(--dark-pink); font-weight: 700; }
+
+/* 에러 마진 조정 */
+.mis-error { margin: 0; }
+
+/* ── 저장 버튼 ── */
+.mis-save-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 15px;
+  background: linear-gradient(135deg, #F4A7BB 0%, #E8879F 100%);
+  border: none;
+  border-radius: 14px;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(232,135,159,0.35);
+  transition: opacity 0.18s, box-shadow 0.18s, transform 0.14s;
+}
+.mis-save-btn:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(232,135,159,0.45);
+  transform: translateY(-1px);
+}
+.mis-save-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* ── 성공 상태 ── */
+.mis-success-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 32px 0 16px;
+}
+.mis-success-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mis-success-msg {
+  font-size: 15px;
+  font-weight: 700;
+  color: #34A853;
+  margin: 0;
+}
+.mis-success-enter-active { transition: opacity 0.3s, transform 0.3s; }
+.mis-success-enter-from   { opacity: 0; transform: scale(0.92); }
+
+
+/* ════════════════════════════════════════════
+   ── My Page ──
+   ════════════════════════════════════════════ */
+
+.myp-page { max-width: 680px; }
+
+/* ── 프로필 카드 ── */
+.myp-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background: #fff;
+  border-radius: 22px;
+  border: 1.5px solid rgba(232, 135, 159, 0.15);
+  border-top: 3px solid var(--main-pink);
+  padding: 24px 24px 22px;
+  margin-bottom: 22px;
+  box-shadow: 0 4px 24px rgba(232, 135, 159, 0.09);
+  position: relative;
+  overflow: hidden;
+}
+.myp-profile-card::after {
+  content: '';
+  position: absolute;
+  bottom: -50px;
+  right: -40px;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(232,135,159,0.09) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.myp-avatar-wrap {
+  flex-shrink: 0;
+}
+.myp-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #F4A7BB, #E8879F);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(232, 135, 159, 0.30);
+  border: 2.5px solid rgba(255,255,255,0.8);
+}
+.myp-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.myp-profile-info { flex: 1; min-width: 0; }
+.myp-profile-name {
+  margin: 0 0 3px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #111;
+  letter-spacing: -0.4px;
+}
+.myp-profile-email {
+  margin: 0;
+  font-size: 12.5px;
+  color: #aaa;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.myp-profile-badge {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--main-pink);
+  background: linear-gradient(135deg, #FEF0F4 0%, #fff5f8 100%);
+  border: 1px solid rgba(232, 135, 159, 0.28);
+  padding: 4px 12px;
+  border-radius: 100px;
+  letter-spacing: 0.2px;
+}
+
+/* ── 섹션 ── */
+.myp-section {
+  background: #fff;
+  border-radius: 22px;
+  border: 1.5px solid #f0f0f0;
+  padding: 20px 20px 10px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.04);
+}
+
+.myp-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.myp-section-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.myp-section-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: #111;
+  letter-spacing: -0.3px;
+}
+.myp-section-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--main-pink);
+  background: rgba(232, 135, 159, 0.1);
+  padding: 2px 9px;
+  border-radius: 100px;
+}
+
+.myp-btn-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(232, 135, 159, 0.38);
+  background: rgba(232, 135, 159, 0.06);
+  color: var(--main-pink);
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: 'Noto Sans KR', sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+.myp-btn-add:hover {
+  background: rgba(232, 135, 159, 0.13);
+  border-color: var(--main-pink);
+  box-shadow: 0 2px 10px rgba(232, 135, 159, 0.15);
+}
+
+/* ── 로딩 ── */
+.myp-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 36px 16px;
+  color: #bbb;
+  font-size: 13px;
+}
+.myp-loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid rgba(232, 135, 159, 0.25);
+  border-top-color: var(--main-pink);
+  border-radius: 50%;
+  animation: med-spin 0.7s linear infinite;
+}
+@keyframes med-spin { to { transform: rotate(360deg); } }
+
+/* ── 에러 ── */
+.myp-fetch-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #fff5f5;
+  border: 1px solid rgba(229, 62, 62, 0.22);
+  color: var(--error-red);
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+/* ── 빈 상태 ── */
+.myp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 36px 16px 28px;
+  gap: 8px;
+}
+.myp-empty-icon-wrap {
+  width: 72px;
+  height: 72px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #FEF0F4 0%, #fff5f8 100%);
+  border: 1.5px solid rgba(232, 135, 159, 0.20);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+  animation: cs-float 2.8s ease-in-out infinite;
+}
+.myp-empty-icon { font-size: 34px; line-height: 1; }
+.myp-empty-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #333;
+  letter-spacing: -0.3px;
+}
+.myp-empty-desc {
+  margin: 0;
+  font-size: 13px;
+  color: #aaa;
+  line-height: 1.6;
+}
+.myp-empty-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 10px 22px;
+  border-radius: 12px;
+  border: none;
+  background: linear-gradient(135deg, #E8879F 0%, #D4718C 100%);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  font-family: 'Noto Sans KR', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(232, 135, 159, 0.34);
+  transition: filter 0.18s, transform 0.12s;
+}
+.myp-empty-btn:hover  { filter: brightness(1.06); }
+.myp-empty-btn:active { transform: scale(0.97); }
+
+/* ════════════════════════════════════════════
+   약 카드
+   ════════════════════════════════════════════ */
+
+.myp-med-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.myp-med-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 4px;
+  border-bottom: 1px solid #f5f5f5;
+  border-radius: 0;
+  transition: background 0.14s;
+  cursor: default;
+  outline: none;
+}
+.myp-med-card:last-child { border-bottom: none; }
+
+/* 왼쪽 아이콘 */
+.myp-med-icon-wrap {
+  flex-shrink: 0;
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #FEF0F4 0%, #fff5f8 100%);
+  border: 1.5px solid rgba(232, 135, 159, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.myp-med-emoji { font-size: 24px; line-height: 1; }
+
+/* 중앙 본문 */
+.myp-med-body {
+  flex: 1;
+  min-width: 0;
+}
+.myp-med-nickname {
+  margin: 0 0 3px;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #111;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.2px;
+}
+.myp-med-type-label {
+  margin: 0;
+  font-size: 12px;
+  color: #aaa;
+  font-weight: 500;
+}
+
+/* 우측 영역 */
+.myp-med-right {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 수정 / 삭제 버튼 묶음 */
+.myp-med-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.myp-med-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: 'Noto Sans KR', sans-serif;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.myp-med-action-btn.edit {
+  background: #f5f5f5;
+  border-color: #ebebeb;
+  color: #666;
+}
+.myp-med-action-btn.edit:hover {
+  background: rgba(232, 135, 159, 0.08);
+  border-color: rgba(232, 135, 159, 0.35);
+  color: var(--main-pink);
+}
+.myp-med-action-btn.delete {
+  background: rgba(239, 68, 68, 0.07);
+  border-color: rgba(239, 68, 68, 0.22);
+  color: #ef4444;
+}
+.myp-med-action-btn.delete:hover {
+  background: rgba(239, 68, 68, 0.13);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #dc2626;
+}
+
+/* ════════════════════════════════════════════
+   삭제 확인 다이얼로그 (바텀시트)
+   ════════════════════════════════════════════ */
+
+.myp-delete-sheet {
+  width: 100%;
+  max-width: 400px;
+  background: #fff;
+  border-radius: 28px 28px 0 0;
+  padding: 12px 28px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0;
+}
+@media (min-width: 640px) {
+  .myp-delete-sheet {
+    border-radius: 28px;
+    padding: 32px 32px 28px;
+  }
+  .myp-delete-sheet .rd-handle { display: none; }
+}
+
+.myp-delete-icon-wrap {
+  font-size: 40px;
+  line-height: 1;
+  margin-bottom: 14px;
+  margin-top: 8px;
+}
+.myp-delete-title {
+  margin: 0 0 10px;
+  font-size: 19px;
+  font-weight: 800;
+  color: #111;
+  letter-spacing: -0.4px;
+}
+.myp-delete-desc {
+  margin: 0 0 20px;
+  font-size: 14px;
+  color: #888;
+  line-height: 1.7;
+}
+.myp-delete-desc strong { color: #333; }
+.myp-delete-error {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--error-red);
+  margin: 0 0 12px;
+}
+.myp-delete-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+.myp-delete-cancel {
+  flex: 1;
+  height: 50px;
+  border-radius: 14px;
+  border: 1.5px solid #ebebeb;
+  background: #fafafa;
+  font-size: 15px;
+  font-weight: 700;
+  color: #888;
+  cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.myp-delete-cancel:hover:not(:disabled) {
+  background: #f0f0f0;
+  border-color: #ddd;
+  color: #555;
+}
+.myp-delete-confirm {
+  flex: 1;
+  height: 50px;
+  border-radius: 14px;
+  border: none;
+  background: #ef4444;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: filter 0.15s, transform 0.1s;
+}
+.myp-delete-confirm:hover:not(:disabled) { filter: brightness(1.08); }
+.myp-delete-confirm:active:not(:disabled) { transform: scale(0.97); }
+.myp-delete-confirm:disabled,
+.myp-delete-cancel:disabled  { opacity: 0.55; cursor: not-allowed; }
+
+.myp-delete-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: med-spin 0.7s linear infinite;
+}
+
+@media (max-width: 540px) {
+  .myp-profile-card  { padding: 20px 18px; border-radius: 18px; gap: 14px; }
+  .myp-avatar        { width: 50px; height: 50px; font-size: 18px; }
+  .myp-profile-name  { font-size: 16px; }
+  .myp-profile-badge { display: none; }
+  .myp-section       { padding: 18px 16px 10px; border-radius: 18px; }
+  .myp-med-icon-wrap { width: 44px; height: 44px; border-radius: 12px; }
+  .myp-med-emoji     { font-size: 20px; }
+  .myp-med-nickname  { font-size: 13.5px; }
+  .myp-med-action-btn { padding: 5px 8px; font-size: 11px; }
+}
+
+/* ════════════════════════════════════════════
+   날짜별 타임라인 바텀시트
+   ════════════════════════════════════════════ */
+
+/* 시트 자체 높이 제한 + 플렉스 레이아웃 */
+.tl-sheet {
+  max-height: 78vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 로딩 상태 */
+.tl-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 44px 20px;
+  color: #aaa;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.tl-loading-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #eee;
+  border-top-color: var(--main-pink);
+  border-radius: 50%;
+  animation: med-spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+/* 스크롤 영역 */
+.tl-body {
+  overflow-y: auto;
+  padding: 4px 22px 28px;
+  flex: 1;
+}
+
+/* ── 타임라인 목록 ── */
+.tl-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.tl-item {
+  display: grid;
+  grid-template-columns: 46px 22px 1fr;
+  column-gap: 12px;
+  align-items: start;
+}
+
+/* 시각 레이블 */
+.tl-time {
+  text-align: right;
+  padding-top: 16px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #b0b0b0;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
+  line-height: 1;
+}
+
+/* 중앙 커넥터 (점 + 선) */
+.tl-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  align-self: stretch; /* 그리드 행 전체 높이 채움 → 선이 끊기지 않음 */
+}
+
+/* 점 위쪽 연결선 (첫 번째 아이템 제외) */
+.tl-line-pre {
+  width: 2px;
+  height: 16px;
+  background: #e0e0e0;
+  flex-shrink: 0;
+}
+
+.tl-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2.5px solid;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+/* 첫 번째 아이템만 위쪽 여백 (tl-line-pre 없으므로 카드 헤더와 정렬) */
+.tl-dot-first { margin-top: 16px; }
+
+.tl-dot-allergy    { background: rgba(232,135,159,.18); border-color: var(--main-pink); }
+.tl-dot-diet       { background: rgba(52,168,83,.15);   border-color: #34A853; }
+.tl-dot-medication { background: rgba(66,133,244,.15);  border-color: #4285F4; }
+
+/* 점 아래쪽 연결선 (마지막 아이템 제외) */
+.tl-line-post {
+  width: 2px;
+  flex: 1;       /* 커넥터의 남은 높이를 모두 채워 다음 아이템 tl-line-pre와 연결 */
+  min-height: 8px;
+  background: #e0e0e0;
+  margin-top: 4px;
+}
+
+/* ── 카드 ── */
+.tl-card {
+  border-radius: 14px;
+  padding: 12px 14px 16px; /* bottom: 16px → 행 높이에 포함돼 커넥터가 채움 */
+  margin-bottom: 0;
+  border: 1.5px solid;
+}
+.tl-card-allergy    { background: rgba(232,135,159,.045); border-color: rgba(232,135,159,.22); }
+.tl-card-diet       { background: rgba(52,168,83,.04);    border-color: rgba(52,168,83,.2);    }
+.tl-card-medication { background: rgba(66,133,244,.04);   border-color: rgba(66,133,244,.2);   }
+
+/* 카드 헤더 */
+.tl-card-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 7px;
+}
+.tl-icon       { font-size: 15px; line-height: 1; flex-shrink: 0; }
+.tl-card-title { font-size: 13px; font-weight: 700; color: #222; flex: 1; }
+
+/* 배지 (강도 / 식사 시간) */
+.tl-badge {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 2px 9px;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+.tl-intensity-mild     { background: rgba(52,168,83,.14);  color: #2e8b46; }
+.tl-intensity-moderate { background: rgba(251,188,4,.18);  color: #b87d00; }
+.tl-intensity-severe   { background: rgba(234,67,53,.13);  color: #c73828; }
+.tl-badge-diet         { background: rgba(52,168,83,.12);  color: #2e8b46; }
+
+/* 증상 · 부위 칩 */
+.tl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+.tl-chip {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 100px;
+}
+.tl-chip-symptom {
+  background: rgba(232,135,159,.13);
+  color: var(--main-pink);
+}
+.tl-chip-body {
+  background: rgba(232,135,159,.06);
+  color: #b05070;
+  border: 1px solid rgba(232,135,159,.22);
+}
+
+/* 식단 음식 목록 */
+.tl-food-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 4px;
+}
+.tl-food-item {
+  /* 항목 래퍼 */
+}
+.tl-food-name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.tl-food-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+.tl-food-amount {
+  font-size: 11.5px;
+  color: #bbb;
+  font-weight: 500;
+}
+.tl-allergen-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.tl-allergen-chip {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 100px;
+  background: #f5f5f5;
+  color: #222;
+  border: 1px solid #ebebeb;
+}
+
+/* 약 이름 */
+.tl-med-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #3a75e0;
+  margin: 0;
+}
+
+/* 메모 */
+.tl-memo {
+  font-size: 11.5px;
+  color: #aaa;
+  margin: 5px 0 0;
+  line-height: 1.55;
+  font-style: italic;
+  word-break: break-word;
+}
+
+/* 기록 추가 버튼 */
+.tl-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  padding: 13px;
+  margin-top: 6px;
+  border-radius: 14px;
+  border: 1.5px dashed rgba(232,135,159,.35);
+  background: rgba(232,135,159,.03);
+  color: var(--main-pink);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Noto Sans KR', sans-serif;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.tl-add-btn:hover {
+  background: rgba(232,135,159,.08);
+  border-color: rgba(232,135,159,.55);
+}
+
+/* ── 반응형 ── */
+@media (max-width: 480px) {
+  .tl-sheet  { max-height: 85vh; }
+  .tl-body   { padding: 4px 16px 24px; }
+  .tl-item   { grid-template-columns: 40px 18px 1fr; column-gap: 9px; }
+  .tl-time   { font-size: 10.5px; padding-top: 15px; }
+  .tl-card   { padding: 10px 12px 14px; }
 }
