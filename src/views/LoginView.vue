@@ -46,8 +46,28 @@ async function handleGoogleLogin() {
   try {
     await signInWithPopup(auth, provider)
     router.push('/')
-  } catch {
-    errorMessage.value = 'Google 로그인에 실패했습니다.'
+  } catch (err: any) {
+    console.error('[Google Login] 오류 코드:', err?.code, '메시지:', err?.message)
+    switch (err?.code) {
+      case 'auth/popup-closed-by-user':
+      case 'auth/cancelled-popup-request':
+        // 사용자가 직접 닫은 경우 — 에러 메시지 불필요
+        break
+      case 'auth/popup-blocked':
+        errorMessage.value = '팝업이 차단되었습니다. 브라우저에서 팝업을 허용한 뒤 다시 시도해주세요.'
+        break
+      case 'auth/operation-not-allowed':
+        errorMessage.value = 'Google 로그인이 활성화되어 있지 않습니다. Firebase Console → Authentication → Sign-in method에서 Google을 활성화해주세요.'
+        break
+      case 'auth/unauthorized-domain':
+        errorMessage.value = '현재 도메인이 Firebase 허가 도메인 목록에 없습니다. Firebase Console → Authentication → Settings → Authorized domains를 확인해주세요.'
+        break
+      case 'auth/network-request-failed':
+        errorMessage.value = '네트워크 연결을 확인해주세요.'
+        break
+      default:
+        errorMessage.value = `Google 로그인 실패 (${err?.code ?? '알 수 없는 오류'})`
+    }
   }
 }
 
