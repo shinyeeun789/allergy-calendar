@@ -1,6 +1,8 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, connectAuthEmulator } from 'firebase/auth'
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'
+import { getAuth } from 'firebase/auth'
+import { getFirestore } from 'firebase/firestore'
+import { getFunctions, connectFunctionsEmulator } from 'firebase/functions'
+import { getStorage } from 'firebase/storage'
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -13,10 +15,13 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig)
 
-export const auth = getAuth(app)
-export const db   = getFirestore(app)
+export const auth      = getAuth(app)
+export const db        = getFirestore(app)
+export const storage   = getStorage(app)
+export const functions = getFunctions(app, 'asia-northeast3')
 
 if (import.meta.env.DEV) {
-  connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true })
-  connectFirestoreEmulator(db, 'localhost', 8080)
+  // Auth·Firestore는 실제 Firebase 사용 (실제 데이터 유지)
+  // Functions만 로컬 에뮬레이터로 연결
+  connectFunctionsEmulator(functions, 'localhost', 5001)
 }

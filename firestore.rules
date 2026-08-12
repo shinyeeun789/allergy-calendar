@@ -13,6 +13,31 @@ service cloud.firestore {
                             && request.auth.uid == resource.data.uid;
     }
 
+    // allergies 컬렉션: 공개 참조 데이터 (비로그인 상태에서도 읽기 허용)
+    match /allergies/{allergyId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // foods 컬렉션: Cloud Functions(Admin SDK)만 쓰기 가능
+    // 클라이언트는 읽기만 허용 (로그인 필수)
+    match /foods/{foodId} {
+      allow read: if request.auth != null;
+      allow write: if false;  // Admin SDK(Cloud Functions)만 가능
+    }
+
+    // search_queries 컬렉션: Cloud Functions(Admin SDK)만 쓰기 가능
+    match /search_queries/{queryId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // 사용자 개인 데이터: 본인만 읽기·쓰기 가능
+    match /users/{uid}/{collection}/{docId} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == uid;
+    }
+
     // 나머지는 로그인 필수
     match /{document=**} {
       allow read, write: if request.auth != null;
