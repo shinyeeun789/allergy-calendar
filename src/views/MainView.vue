@@ -337,6 +337,9 @@ const MEAL_TYPE_EMOJI: Record<string, string> = {
 // allergies 컬렉션 정의 (코드 → { emoji, name_ko })
 const allergenMap = ref<Map<string, AllergenDef>>(new Map())
 
+// 내 알러지 목록 (users/{uid}.allergens)
+const myAllergens = ref<string[]>([])
+
 async function fetchAllergenDefs() {
   if (allergenMap.value.size > 0) return  // 이미 로드됨
   try {
@@ -349,6 +352,17 @@ async function fetchAllergenDefs() {
     allergenMap.value = map
   } catch (e) {
     console.error('[MainView] fetchAllergenDefs 오류:', e)
+  }
+}
+
+async function fetchMyAllergens() {
+  const uid = authStore.user?.uid
+  if (!uid) return
+  try {
+    const snap = await getDoc(doc(db, 'users', uid))
+    myAllergens.value = (snap.data()?.allergens as string[]) ?? []
+  } catch (e) {
+    console.error('[MainView] fetchMyAllergens 오류:', e)
   }
 }
 
@@ -502,6 +516,16 @@ const showMedSheet = ref(false)
 function openDialog()  { showDialog.value = true }
 function closeDialog() { showDialog.value = false }
 
+async function onMedSaved() {
+  showMedSheet.value = false
+  await fetchMedRecords()
+  const date = selectedDate.value
+  if (date && showTimeline.value) {
+    timelineItems.value = []
+    await fetchDayRecords(date)
+  }
+}
+
 function selectRecord(type: 'allergy' | 'diet' | 'medication') {
   closeDialog()
   const dateQuery = selectedDate.value ? `?date=${selectedDate.value}` : ''
@@ -515,7 +539,10 @@ function onKeydown(e: KeyboardEvent) {
   if (showDialog.value)   closeDialog()
   if (showTimeline.value) showTimeline.value = false
 }
-onMounted(() => window.addEventListener('keydown', onKeydown))
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  fetchMyAllergens()
+})
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
@@ -691,8 +718,9 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   <!-- ── 약 복용 기록 바텀시트 ── -->
   <MedicationIntakeSheet
     :visible="showMedSheet"
+    :initialDate="selectedDate ? new Date(selectedDate) : null"
     @close="showMedSheet = false"
-    @saved="showMedSheet = false"
+    @saved="onMedSaved"
   />
 
   <!-- ── 날짜별 타임라인 시트 ── -->
@@ -744,13 +772,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
                   <div v-if="i > 0" class="tl-line-pre"></div>
                   <div
                     class="tl-dot"
-                    :class="[`tl-dot-${item.type}`, { 'tl-dot-first': i === 0 }]"
+                    :class="[item.type === 'diet' ? `tl-dot-diet--${item.mealType ?? 'snack'}` : `tl-dot-${item.type}`, { 'tl-dot-first': i === 0 }]"
                   ></div>
                   <div v-if="i < timelineItems.length - 1" class="tl-line-post"></div>
                 </div>
 
                 <!-- 카드 -->
-                <div class="tl-card" :class="`tl-card-${item.type}`">
+                <div class="tl-card" :class="[`tl-card-${item.type}`, item.type === 'diet' ? `tl-card-diet--${item.mealType ?? 'snack'}` : '']">
 
                   <!-- 알러지 -->
                   <template v-if="item.type === 'allergy'">
@@ -779,7 +807,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
                     <div class="tl-card-header">
                       <span class="tl-icon">{{ MEAL_TYPE_EMOJI[item.mealType ?? ''] ?? '🥗' }}</span>
                       <span class="tl-card-title">식단 기록</span>
-                      <span v-if="item.mealType" class="tl-badge tl-badge-diet">
+                      <span v-if="item.mealType" class="tl-badge" :class="`tl-badge-diet--${item.mealType}`">
                         {{ MEAL_TYPE_LABEL[item.mealType] ?? item.mealType }}
                       </span>
                     </div>
@@ -793,12 +821,14 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
                           <span class="tl-food-name">{{ food.name }}</span>
                           <span class="tl-food-amount">× {{ food.amount }}</span>
                         </div>
-                        <div v-if="food.allergens?.length" class="tl-allergen-chips">
+                        <div v-if="food.allergens?.some(c => myAllergens.includes(c))" class="tl-allergen-chips">
                           <template v-for="code in food.allergens" :key="code">
                             <span
-                              v-if="allergenMap.get(code)"
-                              class="tl-allergen-chip"
-                            >{{ allergenMap.get(code)!.emoji }} {{ allergenMap.get(code)!.name_ko }}</span>
+                              v-if="allergenMap.get(code) && myAllergens.includes(code)"
+                              class="tl-allergen-chip tl-allergen-chip--mine"
+                            >
+                              {{ allergenMap.get(code)!.emoji }} {{ allergenMap.get(code)!.name_ko }}
+                            </span>
                           </template>
                         </div>
                       </div>

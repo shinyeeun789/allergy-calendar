@@ -8,7 +8,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider
 } from 'firebase/auth'
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, getDoc, getDocs, setDoc, collection, serverTimestamp } from 'firebase/firestore'
 import { auth, db } from '@/firebase'
 
 const router = useRouter()
@@ -172,6 +172,7 @@ async function handleSignup() {
     await setDoc(doc(db, 'usernames', nick.toLowerCase()), {
       uid: user.uid, displayName: nick, createdAt: serverTimestamp()
     })
+    await saveUserProfile(user.uid, nick)
     await sendEmailVerification(user, { url: window.location.origin + '/login' })
     sessionStorage.setItem('pendingEmail', email.value)
     router.push('/verify-email')
@@ -191,11 +192,59 @@ async function handleSignup() {
 async function handleGoogleSignup() {
   const provider = new GoogleAuthProvider()
   try {
-    await signInWithPopup(auth, provider)
+    const result = await signInWithPopup(auth, provider)
+    const user = result.user
+    await saveUserProfile(user.uid, user.displayName ?? user.email ?? '')
     router.push('/')
   } catch {
     errorMessage.value = 'Google 로그인에 실패했습니다.'
   }
+}
+
+// ── 알러지 선택 (선택사항) ──
+interface AllergenItem {
+  id:      string
+  emoji:   string
+  name_ko: string
+}
+
+const allergenList      = ref<AllergenItem[]>([])
+const allergenLoading   = ref(false)
+const selectedAllergens = ref<string[]>([])
+
+async function loadAllergens() {
+  allergenLoading.value = true
+  try {
+    const snap = await getDocs(collection(db, 'allergies'))
+    allergenList.value = snap.docs.map(d => ({
+      id:      d.id,
+      emoji:   d.data().emoji   as string,
+      name_ko: d.data().name_ko as string,
+    }))
+  } catch (e) {
+    console.error('[SignupView] 알러지 목록 로드 오류:', e)
+  } finally {
+    allergenLoading.value = false
+  }
+}
+
+function toggleAllergen(id: string) {
+  const idx = selectedAllergens.value.indexOf(id)
+  if (idx >= 0) {
+    selectedAllergens.value.splice(idx, 1)
+  } else {
+    selectedAllergens.value.push(id)
+  }
+}
+
+// 유저 프로필 저장 헬퍼
+async function saveUserProfile(uid: string, nick: string) {
+  await setDoc(doc(db, 'users', uid), {
+    uid,
+    displayName: nick,
+    allergens:   selectedAllergens.value,
+    createdAt:   serverTimestamp(),
+  }, { merge: true })
 }
 
 // ── 준비 중 알럿 ──
@@ -207,7 +256,10 @@ function closeComingSoon() { showComingSoon.value = false }
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape' && showComingSoon.value) closeComingSoon()
 }
-onMounted(() => window.addEventListener('keydown', onKeydown))
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  loadAllergens()
+})
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
@@ -276,7 +328,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           <div class="divider"><span>또는 이메일로 가입</span></div>
 
           <!-- Form -->
-          <form @submit.prevent="openComingSoon" novalidate>
+          <form @submit.prevent="handleSignup" novalidate>
 
             <!-- 닉네임 -->
             <div class="input-group">
@@ -367,6 +419,57 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
                 <span class="input-status" :class="confirmStatusClass">{{ confirmStatusIcon }}</span>
               </div>
               <div :class="matchHint.cls">{{ matchHint.text }}</div>
+            </div>
+
+            <!-- 알러지 선택 (선택사항) -->
+            <div class="su-allergy-section">
+              <div class="su-allergy-header">
+                <div class="su-allergy-header-left">
+                  <span class="su-allergy-title-icon">🚨</span>
+                  <div>
+                    <p class="su-allergy-title">내 알러지</p>
+                    <p class="su-allergy-desc">해당하는 알러지 항목을 모두 선택해주세요.</p>
+                  </div>
+                </div>
+                <span class="su-allergy-badge">선택사항</span>
+              </div>
+
+              <!-- 로딩 -->
+              <div v-if="allergenLoading" class="su-allergy-loading">
+                <span class="su-allergy-spinner"></span>
+                목록 불러오는 중…
+              </div>
+
+              <!-- 그리드 -->
+              <div v-else class="su-allergy-grid">
+                <button
+                  v-for="a in allergenList"
+                  :key="a.id"
+                  type="button"
+                  class="su-allergy-chip"
+                  :class="{ selected: selectedAllergens.includes(a.id) }"
+                  @click="toggleAllergen(a.id)"
+                >
+                  <span class="su-allergy-emoji">{{ a.emoji }}</span>
+                  <span class="su-allergy-name">{{ a.name_ko }}</span>
+                  <span v-if="selectedAllergens.includes(a.id)" class="su-allergy-check" aria-hidden="true">
+                    <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+                      <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </span>
+                </button>
+              </div>
+
+              <!-- 선택 카운트 -->
+              <Transition name="su-allergy-count">
+                <div v-if="selectedAllergens.length > 0" class="su-allergy-count">
+                  <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                    <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M4.5 7l2 2 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  {{ selectedAllergens.length }}가지 선택됨
+                </div>
+              </Transition>
             </div>
 
             <!-- 에러 -->

@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { httpsCallable } from 'firebase/functions'
-import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, getDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { functions, db } from '@/firebase'
 import { useAuthStore } from '@/stores/auth'
 import AppHeader from '@/components/AppHeader.vue'
@@ -26,6 +26,13 @@ const dateParts = computed(() => {
   const dow = new Date(y, m - 1, d).getDay()
   return { y, m, d, dowLabel: DAY_KO[dow] + '요일' }
 })
+
+// ── 수정 모드 ──
+const recordId   = computed(() => {
+  const id = route.query.id
+  return typeof id === 'string' && id ? id : null
+})
+const isEditMode = computed(() => !!recordId.value)
 
 // ── 식사 타입 ──────────────────────────────────────────────
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
@@ -226,18 +233,27 @@ async function handleSubmit() {
         category:      f.category   ?? null,
       }))
 
-    await addDoc(collection(db, 'users', uid, 'dietRecords'), {
-      uid,
-      date:      dateTimestamp,
-      mealType:  selectedMeal.value,
-      foods,
-      memo:      memo.value.trim(),
-      createdAt: serverTimestamp(),
-    })
-
-    // 저장 성공 → 홈으로 이동 전 isSubmitting 해제 (unmount 경고 방지)
-    isSubmitting.value = false
-    router.push('/')
+    if (isEditMode.value) {
+      await updateDoc(doc(db, 'users', uid, 'dietRecords', recordId.value!), {
+        date:     dateTimestamp,
+        mealType: selectedMeal.value,
+        foods,
+        memo:     memo.value.trim(),
+      })
+      isSubmitting.value = false
+      router.push(`/records?date=${dateParam.value}`)
+    } else {
+      await addDoc(collection(db, 'users', uid, 'dietRecords'), {
+        uid,
+        date:      dateTimestamp,
+        mealType:  selectedMeal.value,
+        foods,
+        memo:      memo.value.trim(),
+        createdAt: serverTimestamp(),
+      })
+      isSubmitting.value = false
+      router.push('/')
+    }
   } catch (e: any) {
     console.error('[dietRecord] 저장 오류:', e)
     const msg: string = e?.message ?? ''
@@ -257,7 +273,31 @@ const showMealTooltip = ref(false)
 
 function closeMealTooltip() { showMealTooltip.value = false }
 function handleDocumentClick() { closeMealTooltip() }
-onMounted(()  => document.addEventListener('click', handleDocumentClick))
+onMounted(async () => {
+  document.addEventListener('click', handleDocumentClick)
+  if (!isEditMode.value) return
+  const uid = authStore.user?.uid
+  if (!uid) return
+  try {
+    const snap = await getDoc(doc(db, 'users', uid, 'dietRecords', recordId.value!))
+    if (!snap.exists()) return
+    const data = snap.data()
+    selectedMeal.value = (data.mealType as MealType) ?? getDefaultMeal()
+    const t = (data.date as Timestamp).toDate()
+    selectedTime.value = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`
+    memo.value = (data.memo as string) ?? ''
+    const foods = (data.foods as any[]) ?? []
+    foodItems.value = foods.map(f => ({
+      id:        nextId++,
+      name:      f.name as string,
+      amount:    (f.amount as number) ?? 1,
+      food_code: f.food_code  ?? undefined,
+      allergens: f.allergens  ?? undefined,
+      calories:  f.calories_kcal ?? null,
+      category:  f.category   ?? undefined,
+    }))
+  } catch (e) { console.error('식단 기록 로드 오류:', e) }
+})
 onUnmounted(() => document.removeEventListener('click', handleDocumentClick))
 
 // ── 알레르기 코드 → 표시명 변환 ───────────────────────────────

@@ -39,6 +39,24 @@ const router = createRouter({
       component: () => import('@/views/AllergyRecordView.vue'),
       meta: { requiresAuth: true, requiresVerified: true }
     },
+    {
+      path: '/records',
+      name: 'records',
+      component: () => import('@/views/RecordsView.vue'),
+      meta: { requiresAuth: true, requiresVerified: true }
+    },
+    {
+      path: '/my-page',
+      name: 'my-page',
+      component: () => import('@/views/MyPageView.vue'),
+      meta: { requiresAuth: true, requiresVerified: true }
+    },
+    {
+      path: '/medication-register',
+      name: 'medication-register',
+      component: () => import('@/views/MedicationRegisterView.vue'),
+      meta: { requiresAuth: true, requiresVerified: true }
+    },
     { path: '/:pathMatch(.*)*', redirect: '/' }
   ]
 })

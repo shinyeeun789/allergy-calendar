@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, getDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { SKIN_SYMPTOM_CODES } from '@/constants/symptomCodes'
 import { db } from '@/firebase'
 import { useAuthStore } from '@/stores/auth'
@@ -37,6 +37,31 @@ const dateParts = computed(() => {
   const [y, m, d] = dateParam.value.split('-').map(Number)
   const dow = new Date(y, m - 1, d).getDay()
   return { y, m, d, dowLabel: DAY_KO[dow] + '요일' }
+})
+
+// ── 수정 모드 ──
+const recordId   = computed(() => {
+  const id = route.query.id
+  return typeof id === 'string' && id ? id : null
+})
+const isEditMode = computed(() => !!recordId.value)
+
+onMounted(async () => {
+  if (!isEditMode.value) return
+  const uid = authStore.user?.uid
+  if (!uid) return
+  try {
+    const snap = await getDoc(doc(db, 'users', uid, 'allergyRecords', recordId.value!))
+    if (!snap.exists()) return
+    const data = snap.data()
+    const t = (data.date as Timestamp).toDate()
+    symptomTime.value   = formatTime(t)
+    timeMode.value      = 'custom'
+    showTimeInput.value = true
+    selectedSymptoms.value  = new Set((data.symptoms  as string[]) ?? [])
+    selectedBodyParts.value = new Set((data.bodyParts as string[]) ?? [])
+    intensity.value = (data.intensity as number) ?? 3
+  } catch (e) { console.error('알러지 기록 로드 오류:', e) }
 })
 
 // ── 1. 증상 발생 시각 ────────────────────────────────────────
@@ -293,23 +318,32 @@ async function handleSubmit() {
       new Date(year, month - 1, day, hours, minutes, 0)
     )
 
-    const docRef = await addDoc(collection(db, 'users', uid, 'allergyRecords'), {
-      uid,
-      date:      dateTimestamp,               // Timestamp (날짜 + 시각 통합)
-      symptoms:  [...selectedSymptoms.value], // 공통코드 배열 ["100","201",...]
-      intensity: intensity.value,
-      createdAt: serverTimestamp(),
-    })
-
-    // 약 복용 연동을 위해 doc ID와 시각 보관
-    savedAllergyId.value   = docRef.id
-    savedAllergyDate.value = new Date(year, month - 1, day, hours, minutes, 0)
-
-    // 저장 성공 → 강도 7 이상이면 약 복용 팝업, 아니면 메인으로
-    if (intensity.value >= 7) {
-      showMedModal.value = true
+    if (isEditMode.value) {
+      await updateDoc(doc(db, 'users', uid, 'allergyRecords', recordId.value!), {
+        date:      dateTimestamp,
+        symptoms:  [...selectedSymptoms.value],
+        bodyParts: [...selectedBodyParts.value],
+        intensity: intensity.value,
+      })
+      router.push(`/records?date=${dateParam.value}`)
     } else {
-      router.push('/')
+      const docRef = await addDoc(collection(db, 'users', uid, 'allergyRecords'), {
+        uid,
+        date:      dateTimestamp,
+        symptoms:  [...selectedSymptoms.value],
+        bodyParts: [...selectedBodyParts.value],
+        intensity: intensity.value,
+        createdAt: serverTimestamp(),
+      })
+
+      savedAllergyId.value   = docRef.id
+      savedAllergyDate.value = new Date(year, month - 1, day, hours, minutes, 0)
+
+      if (intensity.value >= 7) {
+        showMedModal.value = true
+      } else {
+        router.push('/')
+      }
     }
   } catch (e) {
     console.error(e)

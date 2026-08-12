@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { collection, query, orderBy, getDocs, deleteDoc, doc } from 'firebase/firestore'
+import { collection, query, orderBy, getDocs, getDoc, setDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/firebase'
 import { useAuthStore } from '@/stores/auth'
 import AppHeader from '@/components/AppHeader.vue'
@@ -100,14 +100,75 @@ async function handleDelete() {
   }
 }
 
+// ── 내 알러지 ─────────────────────────────────────────────────
+interface AllergenDef { emoji: string; name_ko: string }
+
+const allergenDefs       = ref<Map<string, AllergenDef>>(new Map())
+const myAllergens        = ref<string[]>([])
+const allergyLoading     = ref(false)
+const isEditingAllergy   = ref(false)
+const editAllergens      = ref<string[]>([])
+const isSavingAllergy    = ref(false)
+
+async function fetchMyAllergy() {
+  const uid = authStore.user?.uid
+  if (!uid) return
+  allergyLoading.value = true
+  try {
+    const [defsSnap, profileSnap] = await Promise.all([
+      getDocs(collection(db, 'allergies')),
+      getDoc(doc(db, 'users', uid)),
+    ])
+    const map = new Map<string, AllergenDef>()
+    defsSnap.forEach(d => map.set(d.id, { emoji: d.data().emoji, name_ko: d.data().name_ko }))
+    allergenDefs.value = map
+    myAllergens.value  = (profileSnap.data()?.allergens as string[]) ?? []
+  } catch (e) {
+    console.error('[myPage] 알러지 로드 오류:', e)
+  } finally {
+    allergyLoading.value = false
+  }
+}
+
+function startEditAllergy() {
+  editAllergens.value    = [...myAllergens.value]
+  isEditingAllergy.value = true
+}
+
+function toggleEditAllergen(id: string) {
+  const idx = editAllergens.value.indexOf(id)
+  idx >= 0 ? editAllergens.value.splice(idx, 1) : editAllergens.value.push(id)
+}
+
+async function saveAllergy() {
+  const uid = authStore.user?.uid
+  if (!uid) return
+  isSavingAllergy.value = true
+  try {
+    await setDoc(doc(db, 'users', uid), { allergens: editAllergens.value }, { merge: true })
+    myAllergens.value      = [...editAllergens.value]
+    isEditingAllergy.value = false
+  } catch (e) {
+    console.error('[myPage] 알러지 저장 오류:', e)
+  } finally {
+    isSavingAllergy.value = false
+  }
+}
+
+function cancelEditAllergy() {
+  isEditingAllergy.value = false
+}
+
 // ── 키보드 단축키 ─────────────────────────────────────────────
 function onKeydown(e: KeyboardEvent) {
   if (deletingId.value && e.key === 'Escape') cancelDelete()
+  if (isEditingAllergy.value && e.key === 'Escape') cancelEditAllergy()
 }
 
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   fetchMedications()
+  fetchMyAllergy()
 })
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
@@ -133,6 +194,72 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       </div>
       <!-- 편집 버튼 (우측 뱃지) -->
       <div class="myp-profile-badge">마이페이지</div>
+    </div>
+
+    <!-- ── 내 알러지 섹션 ── -->
+    <div class="myp-section">
+      <div class="myp-section-header">
+        <div class="myp-section-title-wrap">
+          <span aria-hidden="true">🚨</span>
+          <h2 class="myp-section-title">내 알러지</h2>
+          <span v-if="!allergyLoading" class="myp-section-count">{{ myAllergens.length }}</span>
+        </div>
+        <button v-if="!isEditingAllergy" class="myp-btn-add" type="button" @click="startEditAllergy">
+          <svg width="11" height="11" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+            <path d="M9.5 2.5l2 2L4 13H2v-2L9.5 2.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          편집
+        </button>
+      </div>
+
+      <!-- 로딩 -->
+      <div v-if="allergyLoading" class="myp-loading">
+        <div class="myp-loading-spinner"></div>
+        <span>불러오는 중...</span>
+      </div>
+
+      <!-- 조회 모드 -->
+      <template v-else-if="!isEditingAllergy">
+        <div v-if="myAllergens.length === 0" class="myp-allergy-empty">
+          <span class="myp-allergy-empty-icon">🌿</span>
+          <p>등록된 알러지가 없어요</p>
+        </div>
+        <div v-else class="myp-allergy-chips">
+          <div v-for="id in myAllergens" :key="id" class="myp-allergy-chip">
+            <span class="myp-allergy-emoji">{{ allergenDefs.get(id)?.emoji }}</span>
+            <span class="myp-allergy-name">{{ allergenDefs.get(id)?.name_ko ?? id }}</span>
+          </div>
+        </div>
+      </template>
+
+      <!-- 편집 모드 -->
+      <template v-else>
+        <div class="myp-allergy-edit-grid">
+          <button
+            v-for="[id, def] in allergenDefs"
+            :key="id"
+            type="button"
+            class="myp-allergy-edit-chip"
+            :class="{ selected: editAllergens.includes(id) }"
+            @click="toggleEditAllergen(id)"
+          >
+            <span v-if="editAllergens.includes(id)" class="myp-allergy-edit-check" aria-hidden="true">
+              <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+                <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="myp-allergy-emoji">{{ def.emoji }}</span>
+            <span class="myp-allergy-name">{{ def.name_ko }}</span>
+          </button>
+        </div>
+        <div class="myp-allergy-edit-actions">
+          <button type="button" class="myp-allergy-cancel-btn" :disabled="isSavingAllergy" @click="cancelEditAllergy">취소</button>
+          <button type="button" class="myp-allergy-save-btn"   :disabled="isSavingAllergy" @click="saveAllergy">
+            <span v-if="isSavingAllergy">저장 중…</span>
+            <span v-else>저장</span>
+          </button>
+        </div>
+      </template>
     </div>
 
     <!-- ── 내 약 상자 섹션 ── -->

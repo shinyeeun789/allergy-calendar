@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { collection, getDocs, addDoc, query, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore'
+import { collection, getDocs, addDoc, updateDoc, doc, query, orderBy, serverTimestamp, Timestamp } from 'firebase/firestore'
 import { db } from '@/firebase'
 import { useAuthStore } from '@/stores/auth'
 
@@ -29,9 +29,21 @@ const props = withDefaults(defineProps<{
   allergyRecordId?: string | null
   /** 알러지 발생 시각 (연동 표시용) */
   allergyDate?:     Date | null
+  /** 달력에서 선택한 날짜 (알러지 연동 없이 날짜만 지정) */
+  initialDate?:     Date | null
+  /** 수정 모드: 기존 기록 ID */
+  editRecordId?:    string | null
+  /** 수정 모드: 기존 약 ID */
+  editMedicationId?: string | null
+  /** 수정 모드: 기존 복용 시각 */
+  editTakenAt?:     Date | null
 }>(), {
-  allergyRecordId: null,
-  allergyDate:     null,
+  allergyRecordId:   null,
+  allergyDate:       null,
+  initialDate:       null,
+  editRecordId:      null,
+  editMedicationId:  null,
+  editTakenAt:       null,
 })
 
 const emit = defineEmits<{
@@ -120,32 +132,40 @@ async function handleSave() {
     const uid = authStore.user?.uid
     if (!uid) throw new Error('로그인 필요')
 
-    // 복용 시각 — 알러지 연동 시 해당 날짜 기준, 아니면 오늘
-    const base = props.allergyDate ?? new Date()
+    // 복용 시각 — 수정 모드 > 알러지 연동 > 달력 선택 날짜 > 오늘 순으로 기준 날짜 결정
+    const base = props.editTakenAt ?? props.allergyDate ?? props.initialDate ?? new Date()
     const [h, m] = takenTime.value.split(':').map(Number)
     const takenAt = Timestamp.fromDate(
       new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m, 0)
     )
 
-    // 연동 알러지 시각
-    const allergyAt = props.allergyDate
-      ? Timestamp.fromDate(props.allergyDate)
-      : null
+    if (props.editRecordId) {
+      // 수정 모드: 약 1개만 선택 허용 (첫 번째 선택)
+      const medicationId = [...selectedIds.value][0]
+      await updateDoc(doc(db, 'users', uid, 'medicationRecords', props.editRecordId), {
+        medicationId,
+        takenAt,
+      })
+    } else {
+      // 신규 등록
+      const allergyAt = props.allergyDate
+        ? Timestamp.fromDate(props.allergyDate)
+        : null
 
-    const selectedMeds = medications.value.filter(med => selectedIds.value.has(med.id))
-
-    await Promise.all(
-      selectedMeds.map(med =>
-        addDoc(collection(db, 'users', uid, 'medicationRecords'), {
-          uid,
-          medicationId:    med.id,
-          takenAt,
-          allergyRecordId: props.allergyRecordId ?? null,
-          allergyAt,
-          createdAt:       serverTimestamp(),
-        })
+      const selectedMeds = medications.value.filter(med => selectedIds.value.has(med.id))
+      await Promise.all(
+        selectedMeds.map(med =>
+          addDoc(collection(db, 'users', uid, 'medicationRecords'), {
+            uid,
+            medicationId:    med.id,
+            takenAt,
+            allergyRecordId: props.allergyRecordId ?? null,
+            allergyAt,
+            createdAt:       serverTimestamp(),
+          })
+        )
       )
-    )
+    }
 
     success.value = true
     setTimeout(() => {
@@ -162,13 +182,25 @@ async function handleSave() {
 }
 
 // ── 초기화 ────────────────────────────────────────────────────
-watch(() => props.visible, (v) => {
+watch(() => props.visible, async (v) => {
   if (v) {
-    loadMedications()
-    selectedIds.value = new Set()
-    setTimeNow()
+    await loadMedications()
     errorMsg.value = ''
     success.value  = false
+    if (props.editRecordId && props.editMedicationId) {
+      // 수정 모드: 기존 약 선택 + 기존 시각 복원
+      selectedIds.value = new Set([props.editMedicationId])
+      if (props.editTakenAt) {
+        timeMode.value      = 'custom'
+        showTimeInput.value = true
+        takenTime.value     = fmt(props.editTakenAt)
+      } else {
+        setTimeNow()
+      }
+    } else {
+      selectedIds.value = new Set()
+      setTimeNow()
+    }
   }
 })
 
